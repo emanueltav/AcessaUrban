@@ -1,12 +1,17 @@
+-- extensão espacial usada para os limites geográficos dos bairros.
 CREATE SCHEMA IF NOT EXISTS extensions;
 CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
 
+
+-- perfis do sistema
 CREATE TABLE public.perfis (
     id UUID PRIMARY KEY,
     nome TEXT NOT NULL,
     criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
+-- bairros, notas e áreas geográficas.
 CREATE TABLE public.bairros (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nome TEXT NOT NULL UNIQUE,
@@ -15,6 +20,8 @@ CREATE TABLE public.bairros (
     limite_geografico extensions.GEOMETRY(MULTIPOLYGON, 4326)
 );
 
+
+-- ocorrências registradas pelos usuários.
 CREATE TABLE public.ocorrencias (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     usuario_id UUID NOT NULL REFERENCES public.perfis(id) ON DELETE RESTRICT,
@@ -32,6 +39,8 @@ CREATE TABLE public.ocorrencias (
     atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
+-- Vvtos de confirmação e resolução das ocorrências.
 CREATE TABLE public.validacoes_ocorrencia (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ocorrencia_id UUID NOT NULL REFERENCES public.ocorrencias(id) ON DELETE RESTRICT,
@@ -46,6 +55,8 @@ CREATE TABLE public.validacoes_ocorrencia (
     )
 );
 
+
+-- praças cadastradas ou solicitadas pelos usuários.
 CREATE TABLE public.pracas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     bairro_id UUID NOT NULL REFERENCES public.bairros(id) ON DELETE RESTRICT,
@@ -56,10 +67,10 @@ CREATE TABLE public.pracas (
     criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
+-- indices para melhorar consultas geográficas.
 CREATE INDEX bairros_limite_geografico_idx
     ON public.bairros USING GIST (limite_geografico);
 
 CREATE INDEX ocorrencias_bairro_id_idx ON public.ocorrencias (bairro_id);
 CREATE INDEX ocorrencias_status_idx ON public.ocorrencias (status);
-
--- O índice da UNIQUE já atende às buscas por ocorrencia_id em validacoes_ocorrencia.
