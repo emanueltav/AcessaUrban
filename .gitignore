@@ -1,2 +1,4 @@
 ﻿node_modules/
 supabase/.temp/
+dados/ibge/*.gpkg
+dados/ibge/*.geojson
