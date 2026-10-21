@@ -5,27 +5,30 @@ import {
   Text,
   View,
 } from 'react-native';
-import MapView, {
+import {
+  Camera,
+  Map,
   Marker,
-  Region,
-} from 'react-native-maps';
+} from '@maplibre/maplibre-react-native';
 
 import {
   listarOcorrenciasMapa,
   OcorrenciaMapa,
 } from '../servicos/mapa';
 
-const regiaoInicial: Region = {
-  latitude: -5.7945,
-  longitude: -35.211,
-  latitudeDelta: 0.5,
-  longitudeDelta: 0.5,
-};
+const ESTILO_MAPA =
+  'https://tiles.openfreemap.org/styles/liberty';
+
+const CENTRO_INICIAL: [number, number] = [
+  -35.211,
+  -5.7945,
+];
 
 export default function Mapa() {
   const [ocorrencias, setOcorrencias] = useState<
     OcorrenciaMapa[]
   >([]);
+
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -77,26 +80,33 @@ export default function Mapa() {
   }
 
   return (
-    <MapView
+    <Map
       style={styles.mapa}
-      initialRegion={regiaoInicial}
+      mapStyle={ESTILO_MAPA}
     >
+      <Camera
+        initialViewState={{
+          center: CENTRO_INICIAL,
+          zoom: 10,
+        }}
+      />
+
       {ocorrencias.map((ocorrencia) => (
         <Marker
           key={ocorrencia.id}
-          coordinate={{
-            latitude: ocorrencia.latitude,
-            longitude: ocorrencia.longitude,
-          }}
-          title={ocorrencia.categoria}
-          description={
-            ocorrencia.bairro
-              ? `${ocorrencia.bairro.nome} — ${ocorrencia.bairro.municipio}/${ocorrencia.bairro.uf}`
-              : ocorrencia.descricao ?? undefined
-          }
-        />
+          id={ocorrencia.id}
+          lngLat={[
+            ocorrencia.longitude,
+            ocorrencia.latitude,
+          ]}
+          anchor="bottom"
+        >
+          <View style={styles.marcador}>
+            <Text style={styles.textoMarcador}>!</Text>
+          </View>
+        </Marker>
       ))}
-    </MapView>
+    </Map>
   );
 }
 
@@ -115,5 +125,21 @@ const styles = StyleSheet.create({
   mensagem: {
     textAlign: 'center',
     marginTop: 12,
+  },
+
+  marcador: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#222222',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+
+  textoMarcador: {
+    color: '#ffffff',
+    fontWeight: 'bold',
   },
 });
