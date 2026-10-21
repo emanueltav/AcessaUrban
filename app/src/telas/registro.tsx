@@ -110,6 +110,20 @@ export default function Registro() {
     }
   }
 
+  function limparOcorrencia() {
+    setFotoUri(null);
+    setLatitude(null);
+    setLongitude(null);
+    setCategoria(null);
+    setGravidade(null);
+    setDescricao('');
+    setMensagem('');
+  }
+
+  function cancelarOcorrencia() {
+    limparOcorrencia();
+  }
+
   async function enviarOcorrencia() {
     if (!sessao) {
       setMensagem('É necessário estar autenticado.');
@@ -155,13 +169,7 @@ export default function Registro() {
         descricao,
       });
 
-      setFotoUri(null);
-      setLatitude(null);
-      setLongitude(null);
-      setCategoria(null);
-      setGravidade(null);
-      setDescricao('');
-
+      limparOcorrencia();
       setMensagem('Ocorrência registrada com sucesso.');
     } catch (error) {
       if (error instanceof Error) {
@@ -215,6 +223,16 @@ export default function Registro() {
           >
             <Text style={styles.textoBotaoSecundario}>
               Tirar outra foto
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.botaoCancelar}
+            onPress={cancelarOcorrencia}
+            disabled={enviando}
+          >
+            <Text style={styles.textoBotaoCancelar}>
+              Cancelar ocorrência
             </Text>
           </Pressable>
         </>
@@ -463,6 +481,20 @@ const styles = StyleSheet.create({
   },
 
   textoBotaoSecundario: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+  botaoCancelar: {
+    borderWidth: 1,
+    borderColor: '#b00020',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+  },
+
+  textoBotaoCancelar: {
+    color: '#b00020',
     fontWeight: 'bold',
     textAlign: 'center',
   },
