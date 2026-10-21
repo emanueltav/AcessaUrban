@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -6,11 +6,17 @@ import {
   View,
 } from 'react-native';
 import {
+  NavigationProp,
+  useFocusEffect,
+  useNavigation,
+} from '@react-navigation/native';
+import {
   Camera,
   Map,
   Marker,
 } from '@maplibre/maplibre-react-native';
 
+import type { RootStackParamList } from '../navegacao/rotas';
 import {
   listarOcorrenciasMapa,
   OcorrenciaMapa,
@@ -25,6 +31,9 @@ const CENTRO_INICIAL: [number, number] = [
 ];
 
 export default function Mapa() {
+  const navigation =
+    useNavigation<NavigationProp<RootStackParamList>>();
+
   const [ocorrencias, setOcorrencias] = useState<
     OcorrenciaMapa[]
   >([]);
@@ -32,30 +41,44 @@ export default function Mapa() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
-  useEffect(() => {
-    async function carregarOcorrencias() {
-      try {
-        setCarregando(true);
-        setErro('');
+  useFocusEffect(
+    useCallback(() => {
+      let ativo = true;
 
-        const dados = await listarOcorrenciasMapa();
+      async function carregarOcorrencias() {
+        try {
+          setCarregando(true);
+          setErro('');
 
-        setOcorrencias(dados);
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error(error.message);
+          const dados = await listarOcorrenciasMapa();
+
+          if (ativo) {
+            setOcorrencias(dados);
+          }
+        } catch (error) {
+          if (error instanceof Error) {
+            console.error(error.message);
+          }
+
+          if (ativo) {
+            setErro(
+              'Não foi possível carregar as ocorrências.'
+            );
+          }
+        } finally {
+          if (ativo) {
+            setCarregando(false);
+          }
         }
-
-        setErro(
-          'Não foi possível carregar as ocorrências.'
-        );
-      } finally {
-        setCarregando(false);
       }
-    }
 
-    carregarOcorrencias();
-  }, []);
+      carregarOcorrencias();
+
+      return () => {
+        ativo = false;
+      };
+    }, [])
+  );
 
   if (carregando) {
     return (
@@ -100,6 +123,11 @@ export default function Mapa() {
             ocorrencia.latitude,
           ]}
           anchor="bottom"
+          onPress={() => {
+            navigation.navigate('Ocorrencia', {
+              ocorrenciaId: ocorrencia.id,
+            });
+          }}
         >
           <View style={styles.marcador}>
             <Text style={styles.textoMarcador}>!</Text>

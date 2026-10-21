@@ -13,6 +13,7 @@ type BairroMapa = {
 
 export type OcorrenciaMapa = {
   id: string;
+  usuario_id: string;
   categoria: string;
   gravidade: string;
   descricao: string | null;
@@ -31,6 +32,7 @@ export async function listarOcorrenciasMapa(): Promise<
     .from('ocorrencias')
     .select(`
       id,
+      usuario_id,
       categoria,
       gravidade,
       descricao,
@@ -62,6 +64,7 @@ export async function listarOcorrenciasMapa(): Promise<
 
     return {
       id: String(ocorrencia.id),
+      usuario_id: String(ocorrencia.usuario_id),
       categoria: String(ocorrencia.categoria),
       gravidade: String(ocorrencia.gravidade),
       descricao: ocorrencia.descricao,
