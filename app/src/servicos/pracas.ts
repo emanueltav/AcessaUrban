@@ -42,7 +42,7 @@ export async function listarPracas(
   const { data, error } =
     await supabase
       .from('pracas')
-      .select(\`
+      .select(`
         id,
         usuario_id,
         nome,
@@ -69,7 +69,7 @@ export async function listarPracas(
           usuario_id,
           nota
         )
-      \`)
+      `)
       .order(
         'criado_em',
         {
@@ -79,7 +79,7 @@ export async function listarPracas(
 
   if (error) {
     throw new Error(
-      \`Erro ao carregar praças: \${error.message}\`
+      `Erro ao carregar praças: ${error.message}`
     );
   }
 
@@ -313,7 +313,7 @@ export async function registrarPraca(
 
     if (error) {
       throw new Error(
-        \`Erro ao registrar praça: \${error.message}\`
+        `Erro ao registrar praça: ${error.message}`
       );
     }
 
@@ -347,7 +347,7 @@ export async function confirmarPraca(
 
   if (error) {
     throw new Error(
-      \`Erro ao confirmar praça: \${error.message}\`
+      `Erro ao confirmar praça: ${error.message}`
     );
   }
 
@@ -371,7 +371,7 @@ export async function avaliarPraca(
 
   if (error) {
     throw new Error(
-      \`Erro ao avaliar praça: \${error.message}\`
+      `Erro ao avaliar praça: ${error.message}`
     );
   }
 }

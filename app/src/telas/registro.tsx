@@ -301,7 +301,7 @@ export default function Registro() {
         >
           {fotoUris.map((fotoUri, indice) => (
             <View
-              key={\`\${fotoUri}-\${indice}\`}
+              key={`${fotoUri}-${indice}`}
               style={styles.cartaoFoto}
             >
               <Image

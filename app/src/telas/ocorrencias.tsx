@@ -1172,11 +1172,11 @@ function CartaoOcorrencia({
         <Text>
           {dias === 0
             ? 'Ativa hoje'
-            : \`Ativa há \${dias} \${
+            : `Ativa há ${dias} ${
                 dias === 1
                   ? 'dia'
                   : 'dias'
-              }\`}
+              }`}
         </Text>
       )}
 

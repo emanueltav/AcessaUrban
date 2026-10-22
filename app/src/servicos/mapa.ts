@@ -45,7 +45,7 @@ export async function listarOcorrenciasMapa(): Promise<
 > {
   const { data, error } = await supabase
     .from('ocorrencias')
-    .select(\`
+    .select(`
       id,
       usuario_id,
       categoria,
@@ -63,14 +63,14 @@ export async function listarOcorrenciasMapa(): Promise<
         municipio,
         uf
       )
-    \`)
+    `)
     .order('criado_em', {
       ascending: false,
     });
 
   if (error) {
     throw new Error(
-      \`Erro ao carregar ocorrências: \${error.message}\`
+      `Erro ao carregar ocorrências: ${error.message}`
     );
   }
 

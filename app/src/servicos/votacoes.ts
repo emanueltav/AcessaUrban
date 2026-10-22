@@ -71,7 +71,7 @@ export async function buscarOcorrencia(
 ): Promise<OcorrenciaDetalhe> {
   const { data, error } = await supabase
     .from('ocorrencias')
-    .select(\`
+    .select(`
       id,
       usuario_id,
       categoria,
@@ -92,13 +92,13 @@ export async function buscarOcorrencia(
         foto_url,
         ordem
       )
-    \`)
+    `)
     .eq('id', ocorrenciaId)
     .single();
 
   if (error) {
     throw new Error(
-      \`Erro ao carregar ocorrência: \${error.message}\`
+      `Erro ao carregar ocorrência: ${error.message}`
     );
   }
 
@@ -157,7 +157,7 @@ export async function buscarHistoricoOcorrencia(
 ): Promise<EventoValidacao[]> {
   const { data, error } = await supabase
     .from('validacao_eventos')
-    .select(\`
+    .select(`
       id,
       voto,
       criado_em,
@@ -166,7 +166,7 @@ export async function buscarHistoricoOcorrencia(
         foto_url,
         ordem
       )
-    \`)
+    `)
     .eq('ocorrencia_id', ocorrenciaId)
     .order('criado_em', {
       ascending: true,
@@ -174,7 +174,7 @@ export async function buscarHistoricoOcorrencia(
 
   if (error) {
     throw new Error(
-      \`Erro ao carregar histórico: \${error.message}\`
+      `Erro ao carregar histórico: ${error.message}`
     );
   }
 
@@ -211,7 +211,7 @@ export async function buscarResumoValidacoes(
 
   if (error) {
     throw new Error(
-      \`Erro ao carregar validações: \${error.message}\`
+      `Erro ao carregar validações: ${error.message}`
     );
   }
 

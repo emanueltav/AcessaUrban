@@ -68,7 +68,7 @@ export async function buscarResumoOcorrencias():
   Promise<ResumoOcorrenciasGeral> {
   const { data, error } = await supabase
     .from('ocorrencias')
-    .select(\`
+    .select(`
       id,
       categoria,
       gravidade,
@@ -81,7 +81,7 @@ export async function buscarResumoOcorrencias():
         municipio,
         uf
       )
-    \`)
+    `)
     .in(
       'status',
       ['ATIVA', 'RESOLVIDA']
@@ -95,7 +95,7 @@ export async function buscarResumoOcorrencias():
 
   if (error) {
     throw new Error(
-      \`Erro ao carregar ocorrências: \${error.message}\`
+      `Erro ao carregar ocorrências: ${error.message}`
     );
   }
 
@@ -312,7 +312,7 @@ export async function registrarOcorrencia(
 
     if (error) {
       throw new Error(
-        \`Erro ao registrar ocorrência: \${error.message}\`
+        `Erro ao registrar ocorrência: ${error.message}`
       );
     }
 

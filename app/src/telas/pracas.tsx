@@ -922,9 +922,9 @@ export default function Pracas() {
                   {praca.media ===
                   null
                     ? 'Sem avaliações'
-                    : \`★ \${praca.media.toFixed(
+                    : `★ ${praca.media.toFixed(
                         1
-                      )} (\${praca.totalAvaliacoes})\`}
+                      )} (${praca.totalAvaliacoes})`}
                 </Text>
 
                 {bonus ? (
