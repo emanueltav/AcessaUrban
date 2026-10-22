@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -33,7 +37,9 @@ const resumoInicial: ResumoValidacoes = {
   votoResolucaoUsuario: null,
 };
 
-function tituloCategoria(categoria: OcorrenciaDetalhe['categoria']) {
+function tituloCategoria(
+  categoria: OcorrenciaDetalhe['categoria']
+) {
   switch (categoria) {
     case 'PAVIMENTACAO':
       return 'Pavimentação';
@@ -46,7 +52,9 @@ function tituloCategoria(categoria: OcorrenciaDetalhe['categoria']) {
   }
 }
 
-function tituloGravidade(gravidade: OcorrenciaDetalhe['gravidade']) {
+function tituloGravidade(
+  gravidade: OcorrenciaDetalhe['gravidade']
+) {
   switch (gravidade) {
     case 'LEVE':
       return 'Leve';
@@ -57,7 +65,9 @@ function tituloGravidade(gravidade: OcorrenciaDetalhe['gravidade']) {
   }
 }
 
-function tituloStatus(status: OcorrenciaDetalhe['status']) {
+function tituloStatus(
+  status: OcorrenciaDetalhe['status']
+) {
   switch (status) {
     case 'PENDENTE_VALIDACAO':
       return 'Aguardando validação';
@@ -70,7 +80,9 @@ function tituloStatus(status: OcorrenciaDetalhe['status']) {
 
 function mensagemErroVoto(error: unknown) {
   const mensagem =
-    error instanceof Error ? error.message : '';
+    error instanceof Error
+      ? error.message
+      : '';
 
   if (
     mensagem.includes(
@@ -88,7 +100,11 @@ function mensagemErroVoto(error: unknown) {
     return 'Esta ocorrência não está mais aguardando confirmação.';
   }
 
-  if (mensagem.includes('A ocorrencia nao esta ativa')) {
+  if (
+    mensagem.includes(
+      'A ocorrencia nao esta ativa'
+    )
+  ) {
     return 'Esta ocorrência não está mais disponível para votação.';
   }
 
@@ -106,60 +122,91 @@ export default function Ocorrencias() {
   const { sessao } = useAutenticacao();
 
   const route =
-    useRoute<RouteProp<RootStackParamList, 'Ocorrencia'>>();
+    useRoute<
+      RouteProp<
+        RootStackParamList,
+        'Ocorrencia'
+      >
+    >();
 
   const [ocorrencia, setOcorrencia] =
-    useState<OcorrenciaDetalhe | null>(null);
+    useState<OcorrenciaDetalhe | null>(
+      null
+    );
+
   const [resumo, setResumo] =
-    useState<ResumoValidacoes>(resumoInicial);
-  const [carregando, setCarregando] = useState(true);
-  const [enviandoVoto, setEnviandoVoto] = useState(false);
+    useState<ResumoValidacoes>(
+      resumoInicial
+    );
+
+  const [carregando, setCarregando] =
+    useState(true);
+
+  const [
+    enviandoVoto,
+    setEnviandoVoto,
+  ] = useState(false);
+
   const [erro, setErro] = useState('');
-  const [mensagem, setMensagem] = useState('');
+  const [mensagem, setMensagem] =
+    useState('');
 
-  const ocorrenciaId = route.params.ocorrenciaId;
-  const usuarioId = sessao?.user.id ?? null;
+  const ocorrenciaId =
+    route.params.ocorrenciaId;
 
-  const carregarDados = useCallback(async () => {
-    try {
-      setCarregando(true);
-      setErro('');
+  const usuarioId =
+    sessao?.user.id ?? null;
 
-      const dadosOcorrencia =
-        await buscarOcorrencia(ocorrenciaId);
+  const carregarDados =
+    useCallback(async () => {
+      try {
+        setCarregando(true);
+        setErro('');
 
-      setOcorrencia(dadosOcorrencia);
-
-      if (usuarioId) {
-        const dadosResumo =
-          await buscarResumoValidacoes(
-            ocorrenciaId,
-            usuarioId
+        const dadosOcorrencia =
+          await buscarOcorrencia(
+            ocorrenciaId
           );
 
-        setResumo(dadosResumo);
-      } else {
-        setResumo(resumoInicial);
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error(error.message);
-      }
+        setOcorrencia(
+          dadosOcorrencia
+        );
 
-      setErro(
-        'Não foi possível carregar esta ocorrência.'
-      );
-    } finally {
-      setCarregando(false);
-    }
-  }, [ocorrenciaId, usuarioId]);
+        if (usuarioId) {
+          const dadosResumo =
+            await buscarResumoValidacoes(
+              ocorrenciaId,
+              usuarioId
+            );
+
+          setResumo(dadosResumo);
+        } else {
+          setResumo(resumoInicial);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(
+            error.message
+          );
+        }
+
+        setErro(
+          'Não foi possível carregar esta ocorrência.'
+        );
+      } finally {
+        setCarregando(false);
+      }
+    }, [ocorrenciaId, usuarioId]);
 
   useEffect(() => {
     carregarDados();
   }, [carregarDados]);
 
   async function confirmar() {
-    if (!usuarioId || enviandoVoto) {
+    if (
+      !usuarioId ||
+      enviandoVoto
+    ) {
       return;
     }
 
@@ -172,21 +219,34 @@ export default function Ocorrencias() {
         usuarioId
       );
 
-      setMensagem('Ocorrência confirmada.');
+      setMensagem(
+        'Ocorrência confirmada.'
+      );
+
       await carregarDados();
     } catch (error) {
-      setMensagem(mensagemErroVoto(error));
+      setMensagem(
+        mensagemErroVoto(error)
+      );
     } finally {
       setEnviandoVoto(false);
     }
   }
 
-  async function votar(voto: VotoResolucao) {
-    if (!usuarioId || enviandoVoto) {
+  async function votar(
+    voto: VotoResolucao
+  ) {
+    if (
+      !usuarioId ||
+      enviandoVoto
+    ) {
       return;
     }
 
-    if (resumo.votoResolucaoUsuario === voto) {
+    if (
+      resumo.votoResolucaoUsuario ===
+      voto
+    ) {
       return;
     }
 
@@ -208,7 +268,9 @@ export default function Ocorrencias() {
 
       await carregarDados();
     } catch (error) {
-      setMensagem(mensagemErroVoto(error));
+      setMensagem(
+        mensagemErroVoto(error)
+      );
     } finally {
       setEnviandoVoto(false);
     }
@@ -218,6 +280,7 @@ export default function Ocorrencias() {
     return (
       <View style={styles.centralizado}>
         <ActivityIndicator />
+
         <Text style={styles.mensagem}>
           Carregando ocorrência...
         </Text>
@@ -229,33 +292,87 @@ export default function Ocorrencias() {
     return (
       <View style={styles.centralizado}>
         <Text style={styles.mensagem}>
-          {erro || 'Ocorrência não encontrada.'}
+          {erro ||
+            'Ocorrência não encontrada.'}
         </Text>
       </View>
     );
   }
 
   const ehAutor =
-    usuarioId === ocorrencia.usuario_id;
+    usuarioId ===
+    ocorrencia.usuario_id;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Image
-        source={{ uri: ocorrencia.foto_url }}
-        style={styles.foto}
-      />
+    <ScrollView
+      contentContainerStyle={
+        styles.container
+      }
+    >
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.galeria
+          }
+        >
+          {ocorrencia.fotos.map(
+            (foto, indice) => (
+              <View
+                key={foto.id}
+                style={
+                  styles.cartaoFoto
+                }
+              >
+                <Image
+                  source={{
+                    uri: foto.foto_url,
+                  }}
+                  style={styles.foto}
+                />
+
+                {ocorrencia.fotos
+                  .length > 1 ? (
+                  <Text
+                    style={
+                      styles.numeroFoto
+                    }
+                  >
+                    {indice + 1}/
+                    {
+                      ocorrencia.fotos
+                        .length
+                    }
+                  </Text>
+                ) : null}
+              </View>
+            )
+          )}
+        </ScrollView>
+      </View>
 
       <View style={styles.bloco}>
         <Text style={styles.titulo}>
-          {tituloCategoria(ocorrencia.categoria)}
+          {tituloCategoria(
+            ocorrencia.categoria
+          )}
         </Text>
 
         <Text>
-          Gravidade: {tituloGravidade(ocorrencia.gravidade)}
+          Gravidade:{' '}
+          {tituloGravidade(
+            ocorrencia.gravidade
+          )}
         </Text>
 
         <Text>
-          Status: {tituloStatus(ocorrencia.status)}
+          Status:{' '}
+          {tituloStatus(
+            ocorrencia.status
+          )}
         </Text>
 
         {ocorrencia.bairro ? (
@@ -267,7 +384,9 @@ export default function Ocorrencias() {
         ) : null}
 
         {ocorrencia.descricao ? (
-          <Text style={styles.descricao}>
+          <Text
+            style={styles.descricao}
+          >
             {ocorrencia.descricao}
           </Text>
         ) : null}
@@ -280,84 +399,124 @@ export default function Ocorrencias() {
 
         {sessao ? (
           <>
-            {ocorrencia.status === 'PENDENTE_VALIDACAO' ? (
-              <Text style={styles.contagem}>
-                Confirmações: {resumo.confirmacoes}/3
+            {ocorrencia.status ===
+            'PENDENTE_VALIDACAO' ? (
+              <Text
+                style={
+                  styles.contagem
+                }
+              >
+                Confirmações:{' '}
+                {resumo.confirmacoes}/3
               </Text>
             ) : (
-              <Text style={styles.contagem}>
+              <Text
+                style={
+                  styles.contagem
+                }
+              >
                 Confirmações concluídas
               </Text>
             )}
 
-            {ocorrencia.status === 'ATIVA' ? (
+            {ocorrencia.status ===
+            'ATIVA' ? (
               <>
-                <Text style={styles.contagem}>
-                  Resolvido: {resumo.resolvidos}/3
+                <Text
+                  style={
+                    styles.contagem
+                  }
+                >
+                  Resolvido:{' '}
+                  {resumo.resolvidos}/3
                 </Text>
 
-                <Text style={styles.contagem}>
-                  Ainda existe: {resumo.aindaExiste}
+                <Text
+                  style={
+                    styles.contagem
+                  }
+                >
+                  Ainda existe:{' '}
+                  {resumo.aindaExiste}
                 </Text>
               </>
             ) : null}
           </>
         ) : null}
 
-        {ocorrencia.status === 'RESOLVIDA' ? (
+        {ocorrencia.status ===
+        'RESOLVIDA' ? (
           <Text style={styles.aviso}>
-            Esta ocorrência foi marcada como resolvida.
+            Esta ocorrência foi marcada
+            como resolvida.
           </Text>
         ) : null}
 
         {!sessao ? (
           <Text style={styles.aviso}>
-            Entre na sua conta para participar da validação.
+            Entre na sua conta para
+            participar da validação.
           </Text>
         ) : ehAutor ? (
           <Text style={styles.aviso}>
-            Você registrou esta ocorrência e não participa da
-            votação dela.
+            Você registrou esta ocorrência
+            e não participa da votação
+            dela.
           </Text>
-        ) : ocorrencia.status === 'PENDENTE_VALIDACAO' ? (
+        ) : ocorrencia.status ===
+          'PENDENTE_VALIDACAO' ? (
           resumo.usuarioConfirmou ? (
             <Text style={styles.aviso}>
-              Você já confirmou esta ocorrência.
+              Você já confirmou esta
+              ocorrência.
             </Text>
           ) : (
             <Pressable
               style={[
                 styles.botaoPrincipal,
-                enviandoVoto && styles.botaoDesabilitado,
+                enviandoVoto &&
+                  styles.botaoDesabilitado,
               ]}
               onPress={confirmar}
               disabled={enviandoVoto}
             >
-              <Text style={styles.textoBotaoPrincipal}>
+              <Text
+                style={
+                  styles.textoBotaoPrincipal
+                }
+              >
                 {enviandoVoto
                   ? 'Confirmando...'
                   : 'Confirmar problema'}
               </Text>
             </Pressable>
           )
-        ) : ocorrencia.status === 'ATIVA' ? (
+        ) : ocorrencia.status ===
+          'ATIVA' ? (
           <View style={styles.acoes}>
             <Pressable
               style={[
                 styles.botaoVoto,
-                resumo.votoResolucaoUsuario ===
+
+                resumo
+                  .votoResolucaoUsuario ===
                   'AINDA_EXISTE' &&
                   styles.botaoVotoSelecionado,
               ]}
-              onPress={() => votar('AINDA_EXISTE')}
+              onPress={() =>
+                votar('AINDA_EXISTE')
+              }
               disabled={enviandoVoto}
             >
               <Text
                 style={[
                   styles.textoBotaoVoto,
-                  resumo.votoResolucaoUsuario ===
+
+                  resumo
+                    .votoResolucaoUsuario ===
                     'AINDA_EXISTE' &&
-                    styles.textoBotaoVotoSelecionado,
+                    styles
+                      .textoBotaoVotoSelecionado,
                 ]}
               >
                 Ainda existe
@@ -367,19 +526,26 @@ export default function Ocorrencias() {
             <Pressable
               style={[
                 styles.botaoVoto,
-                resumo.votoResolucaoUsuario ===
+
+                resumo
+                  .votoResolucaoUsuario ===
                   'RESOLVIDO' &&
                   styles.botaoVotoSelecionado,
               ]}
-              onPress={() => votar('RESOLVIDO')}
+              onPress={() =>
+                votar('RESOLVIDO')
+              }
               disabled={enviandoVoto}
             >
               <Text
                 style={[
                   styles.textoBotaoVoto,
-                  resumo.votoResolucaoUsuario ===
+
+                  resumo
+                    .votoResolucaoUsuario ===
                     'RESOLVIDO' &&
-                    styles.textoBotaoVotoSelecionado,
+                    styles
+                      .textoBotaoVotoSelecionado,
                 ]}
               >
                 Resolvido
@@ -390,11 +556,17 @@ export default function Ocorrencias() {
 
         {enviandoVoto &&
         ocorrencia.status === 'ATIVA' ? (
-          <ActivityIndicator style={styles.carregandoVoto} />
+          <ActivityIndicator
+            style={
+              styles.carregandoVoto
+            }
+          />
         ) : null}
 
         {mensagem ? (
-          <Text style={styles.mensagem}>
+          <Text
+            style={styles.mensagem}
+          >
             {mensagem}
           </Text>
         ) : null}
@@ -416,10 +588,24 @@ const styles = StyleSheet.create({
     padding: 24,
   },
 
+  galeria: {
+    gap: 10,
+  },
+
+  cartaoFoto: {
+    width: 300,
+  },
+
   foto: {
-    width: '100%',
-    height: 260,
+    width: 300,
+    height: 240,
     borderRadius: 10,
+  },
+
+  numeroFoto: {
+    textAlign: 'center',
+    marginTop: 4,
+    fontWeight: '600',
   },
 
   bloco: {

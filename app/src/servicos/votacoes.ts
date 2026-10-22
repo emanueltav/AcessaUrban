@@ -20,6 +20,12 @@ export type VotoResolucao =
   | 'AINDA_EXISTE'
   | 'RESOLVIDO';
 
+export type FotoOcorrencia = {
+  id: string;
+  foto_url: string;
+  ordem: number;
+};
+
 type BairroOcorrencia = {
   nome: string;
   municipio: string;
@@ -33,6 +39,7 @@ export type OcorrenciaDetalhe = {
   gravidade: GravidadeOcorrencia;
   descricao: string | null;
   foto_url: string;
+  fotos: FotoOcorrencia[];
   status: StatusOcorrencia;
   criado_em: string;
   bairro: BairroOcorrencia | null;
@@ -51,7 +58,7 @@ export async function buscarOcorrencia(
 ): Promise<OcorrenciaDetalhe> {
   const { data, error } = await supabase
     .from('ocorrencias')
-    .select(`
+    .select(\`
       id,
       usuario_id,
       categoria,
@@ -64,14 +71,19 @@ export async function buscarOcorrencia(
         nome,
         municipio,
         uf
+      ),
+      fotos:ocorrencia_fotos (
+        id,
+        foto_url,
+        ordem
       )
-    `)
+    \`)
     .eq('id', ocorrenciaId)
     .single();
 
   if (error) {
     throw new Error(
-      `Erro ao carregar ocorrência: ${error.message}`
+      \`Erro ao carregar ocorrência: \${error.message}\`
     );
   }
 
@@ -79,13 +91,39 @@ export async function buscarOcorrencia(
     ? data.bairro[0] ?? null
     : data.bairro ?? null;
 
+  const fotos = (
+    Array.isArray(data.fotos)
+      ? data.fotos
+      : []
+  )
+    .map((foto) => ({
+      id: String(foto.id),
+      foto_url: String(foto.foto_url),
+      ordem: Number(foto.ordem),
+    }))
+    .sort((a, b) => a.ordem - b.ordem);
+
+  if (
+    fotos.length === 0 &&
+    data.foto_url
+  ) {
+    fotos.push({
+      id: 'principal',
+      foto_url: String(data.foto_url),
+      ordem: 1,
+    });
+  }
+
   return {
     id: String(data.id),
     usuario_id: String(data.usuario_id),
-    categoria: data.categoria as CategoriaOcorrencia,
-    gravidade: data.gravidade as GravidadeOcorrencia,
+    categoria:
+      data.categoria as CategoriaOcorrencia,
+    gravidade:
+      data.gravidade as GravidadeOcorrencia,
     descricao: data.descricao,
     foto_url: String(data.foto_url),
+    fotos,
     status: data.status as StatusOcorrencia,
     criado_em: String(data.criado_em),
     bairro: bairro
@@ -109,7 +147,7 @@ export async function buscarResumoValidacoes(
 
   if (error) {
     throw new Error(
-      `Erro ao carregar validações: ${error.message}`
+      \`Erro ao carregar validações: \${error.message}\`
     );
   }
 
@@ -117,7 +155,10 @@ export async function buscarResumoValidacoes(
   let resolvidos = 0;
   let aindaExiste = 0;
   let usuarioConfirmou = false;
-  let votoResolucaoUsuario: VotoResolucao | null = null;
+
+  let votoResolucaoUsuario:
+    | VotoResolucao
+    | null = null;
 
   for (const validacao of data ?? []) {
     if (
@@ -126,21 +167,29 @@ export async function buscarResumoValidacoes(
     ) {
       confirmacoes += 1;
 
-      if (validacao.usuario_id === usuarioId) {
+      if (
+        validacao.usuario_id === usuarioId
+      ) {
         usuarioConfirmou = true;
       }
     }
 
     if (validacao.fase === 'RESOLUCAO') {
-      if (validacao.voto === 'RESOLVIDO') {
+      if (
+        validacao.voto === 'RESOLVIDO'
+      ) {
         resolvidos += 1;
       }
 
-      if (validacao.voto === 'AINDA_EXISTE') {
+      if (
+        validacao.voto === 'AINDA_EXISTE'
+      ) {
         aindaExiste += 1;
       }
 
-      if (validacao.usuario_id === usuarioId) {
+      if (
+        validacao.usuario_id === usuarioId
+      ) {
         votoResolucaoUsuario =
           validacao.voto as VotoResolucao;
       }
@@ -189,7 +238,8 @@ export async function votarResolucao(
         voto,
       },
       {
-        onConflict: 'ocorrencia_id,usuario_id,fase',
+        onConflict:
+          'ocorrencia_id,usuario_id,fase',
       }
     );
 

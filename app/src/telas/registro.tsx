@@ -23,14 +23,20 @@ type Categoria =
 
 type Gravidade = 'LEVE' | 'MODERADO' | 'GRAVE';
 
-const categorias: { valor: Categoria; titulo: string }[] = [
+const categorias: {
+  valor: Categoria;
+  titulo: string;
+}[] = [
   { valor: 'PAVIMENTACAO', titulo: 'Pavimentação' },
   { valor: 'ILUMINACAO', titulo: 'Iluminação' },
   { valor: 'ESGOTO', titulo: 'Esgoto' },
   { valor: 'CALCAMENTO', titulo: 'Calçamento' },
 ];
 
-const gravidades: { valor: Gravidade; titulo: string }[] = [
+const gravidades: {
+  valor: Gravidade;
+  titulo: string;
+}[] = [
   { valor: 'LEVE', titulo: 'Leve' },
   { valor: 'MODERADO', titulo: 'Moderado' },
   { valor: 'GRAVE', titulo: 'Grave' },
@@ -39,15 +45,27 @@ const gravidades: { valor: Gravidade; titulo: string }[] = [
 export default function Registro() {
   const { sessao, carregando } = useAutenticacao();
 
-  const [fotoUri, setFotoUri] = useState<string | null>(null);
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
+  const [fotoUris, setFotoUris] = useState<string[]>([]);
 
-  const [categoria, setCategoria] = useState<Categoria | null>(null);
-  const [gravidade, setGravidade] = useState<Gravidade | null>(null);
+  const [latitude, setLatitude] =
+    useState<number | null>(null);
+
+  const [longitude, setLongitude] =
+    useState<number | null>(null);
+
+  const [categoria, setCategoria] =
+    useState<Categoria | null>(null);
+
+  const [gravidade, setGravidade] =
+    useState<Gravidade | null>(null);
+
   const [descricao, setDescricao] = useState('');
 
-  const [obtendoLocalizacao, setObtendoLocalizacao] = useState(false);
+  const [
+    obtendoLocalizacao,
+    setObtendoLocalizacao,
+  ] = useState(false);
+
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState('');
 
@@ -59,25 +77,37 @@ export default function Registro() {
         await Location.requestForegroundPermissionsAsync();
 
       if (!permissao.granted) {
-        setMensagem('É necessário permitir o acesso à localização.');
+        setMensagem(
+          'É necessário permitir o acesso à localização.'
+        );
         return;
       }
 
-      const localizacao = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+      const localizacao =
+        await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
 
       setLatitude(localizacao.coords.latitude);
       setLongitude(localizacao.coords.longitude);
       setMensagem('');
     } catch {
-      setMensagem('Não foi possível obter sua localização.');
+      setMensagem(
+        'Não foi possível obter sua localização.'
+      );
     } finally {
       setObtendoLocalizacao(false);
     }
   }
 
   async function tirarFoto() {
+    if (fotoUris.length >= 3) {
+      setMensagem(
+        'Você pode adicionar no máximo 3 fotos.'
+      );
+      return;
+    }
+
     setMensagem('');
 
     try {
@@ -85,33 +115,62 @@ export default function Registro() {
         await ImagePicker.requestCameraPermissionsAsync();
 
       if (!permissao.granted) {
-        setMensagem('É necessário permitir o acesso à câmera.');
+        setMensagem(
+          'É necessário permitir o acesso à câmera.'
+        );
         return;
       }
 
-      const resultado = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        quality: 0.7,
-      });
+      const resultado =
+        await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          quality: 0.7,
+        });
 
       if (resultado.canceled) {
         return;
       }
 
+      const primeiraFoto = fotoUris.length === 0;
       const foto = resultado.assets[0];
 
-      setFotoUri(foto.uri);
-      setLatitude(null);
-      setLongitude(null);
+      setFotoUris((atual) => [
+        ...atual,
+        foto.uri,
+      ]);
 
-      await obterLocalizacao();
+      if (primeiraFoto) {
+        setLatitude(null);
+        setLongitude(null);
+
+        await obterLocalizacao();
+      }
     } catch {
-      setMensagem('Não foi possível utilizar a câmera.');
+      setMensagem(
+        'Não foi possível utilizar a câmera.'
+      );
     }
   }
 
+  function removerFoto(indice: number) {
+    setFotoUris((atual) => {
+      const novasFotos = atual.filter(
+        (_, posicao) => posicao !== indice
+      );
+
+      if (novasFotos.length === 0) {
+        setLatitude(null);
+        setLongitude(null);
+      }
+
+      return novasFotos;
+    });
+
+    setMensagem('');
+  }
+
   function limparOcorrencia() {
-    setFotoUri(null);
+    setFotoUris([]);
     setLatitude(null);
     setLongitude(null);
     setCategoria(null);
@@ -120,23 +179,28 @@ export default function Registro() {
     setMensagem('');
   }
 
-  function cancelarOcorrencia() {
-    limparOcorrencia();
-  }
-
   async function enviarOcorrencia() {
     if (!sessao) {
-      setMensagem('É necessário estar autenticado.');
+      setMensagem(
+        'É necessário estar autenticado.'
+      );
       return;
     }
 
-    if (!fotoUri) {
-      setMensagem('Tire uma foto do problema.');
+    if (fotoUris.length === 0) {
+      setMensagem(
+        'Tire pelo menos uma foto do problema.'
+      );
       return;
     }
 
-    if (latitude === null || longitude === null) {
-      setMensagem('A localização ainda não foi obtida.');
+    if (
+      latitude === null ||
+      longitude === null
+    ) {
+      setMensagem(
+        'A localização ainda não foi obtida.'
+      );
       return;
     }
 
@@ -151,7 +215,9 @@ export default function Registro() {
     }
 
     if (!descricao.trim()) {
-      setMensagem('Digite uma pequena descrição.');
+      setMensagem(
+        'Digite uma pequena descrição.'
+      );
       return;
     }
 
@@ -161,7 +227,7 @@ export default function Registro() {
     try {
       await registrarOcorrencia({
         usuarioId: sessao.user.id,
-        fotoUri,
+        fotoUris,
         latitude,
         longitude,
         categoria,
@@ -170,12 +236,17 @@ export default function Registro() {
       });
 
       limparOcorrencia();
-      setMensagem('Ocorrência registrada com sucesso.');
+
+      setMensagem(
+        'Ocorrência registrada com sucesso.'
+      );
     } catch (error) {
       if (error instanceof Error) {
         setMensagem(error.message);
       } else {
-        setMensagem('Não foi possível registrar a ocorrência.');
+        setMensagem(
+          'Não foi possível registrar a ocorrência.'
+        );
       }
     } finally {
       setEnviando(false);
@@ -193,7 +264,9 @@ export default function Registro() {
   if (!sessao) {
     return (
       <View style={styles.centralizado}>
-        <Text style={styles.titulo}>Registro de Ocorrência</Text>
+        <Text style={styles.titulo}>
+          Registro de Ocorrência
+        </Text>
 
         <Text style={styles.textoCentralizado}>
           Entre na sua conta para registrar uma ocorrência.
@@ -208,67 +281,118 @@ export default function Registro() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.titulo}>Registro de Ocorrência</Text>
+      <Text style={styles.titulo}>
+        Registro de Ocorrência
+      </Text>
 
-      <Text style={styles.rotulo}>1. Foto do problema</Text>
+      <Text style={styles.rotulo}>
+        1. Fotos do problema
+      </Text>
 
-      {fotoUri ? (
-        <>
-          <Image source={{ uri: fotoUri }} style={styles.foto} />
+      <Text style={styles.ajuda}>
+        Adicione de 1 a 3 fotos.
+      </Text>
 
-          <Pressable
-            style={styles.botaoSecundario}
-            onPress={tirarFoto}
-            disabled={enviando}
-          >
-            <Text style={styles.textoBotaoSecundario}>
-              Tirar outra foto
-            </Text>
-          </Pressable>
+      {fotoUris.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.listaFotos}
+        >
+          {fotoUris.map((fotoUri, indice) => (
+            <View
+              key={\`\${fotoUri}-\${indice}\`}
+              style={styles.cartaoFoto}
+            >
+              <Image
+                source={{ uri: fotoUri }}
+                style={styles.foto}
+              />
 
-          <Pressable
-            style={styles.botaoCancelar}
-            onPress={cancelarOcorrencia}
-            disabled={enviando}
-          >
-            <Text style={styles.textoBotaoCancelar}>
-              Cancelar ocorrência
-            </Text>
-          </Pressable>
-        </>
-      ) : (
+              <Text style={styles.numeroFoto}>
+                Foto {indice + 1}
+              </Text>
+
+              <Pressable
+                style={styles.botaoRemoverFoto}
+                onPress={() => removerFoto(indice)}
+                disabled={enviando}
+              >
+                <Text
+                  style={styles.textoBotaoRemoverFoto}
+                >
+                  Remover
+                </Text>
+              </Pressable>
+            </View>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {fotoUris.length < 3 ? (
         <Pressable
           style={styles.botao}
           onPress={tirarFoto}
           disabled={enviando}
         >
-          <Text style={styles.textoBotao}>Tirar foto</Text>
+          <Text style={styles.textoBotao}>
+            {fotoUris.length === 0
+              ? 'Tirar foto'
+              : 'Adicionar outra foto'}
+          </Text>
         </Pressable>
+      ) : (
+        <Text style={styles.limiteFotos}>
+          Limite de 3 fotos atingido.
+        </Text>
       )}
 
-      {fotoUri ? (
+      {fotoUris.length > 0 ? (
+        <Pressable
+          style={styles.botaoCancelar}
+          onPress={limparOcorrencia}
+          disabled={enviando}
+        >
+          <Text style={styles.textoBotaoCancelar}>
+            Cancelar ocorrência
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {fotoUris.length > 0 ? (
         <>
-          <Text style={styles.rotulo}>2. Localização</Text>
+          <Text style={styles.rotulo}>
+            2. Localização
+          </Text>
 
           {obtendoLocalizacao ? (
             <View style={styles.status}>
               <ActivityIndicator />
-              <Text>Obtendo localização...</Text>
+              <Text>
+                Obtendo localização...
+              </Text>
             </View>
-          ) : latitude !== null && longitude !== null ? (
+          ) : latitude !== null &&
+            longitude !== null ? (
             <View style={styles.status}>
-              <Text>Localização obtida automaticamente.</Text>
+              <Text>
+                Localização obtida automaticamente.
+              </Text>
             </View>
           ) : (
             <View style={styles.status}>
-              <Text>Localização não disponível.</Text>
+              <Text>
+                Localização não disponível.
+              </Text>
 
               <Pressable
                 style={styles.botaoSecundario}
                 onPress={obterLocalizacao}
                 disabled={enviando}
               >
-                <Text style={styles.textoBotaoSecundario}>
+                <Text
+                  style={styles.textoBotaoSecundario}
+                >
                   Tentar novamente
                 </Text>
               </Pressable>
@@ -277,12 +401,14 @@ export default function Registro() {
         </>
       ) : null}
 
-      {fotoUri &&
+      {fotoUris.length > 0 &&
       latitude !== null &&
       longitude !== null &&
       !obtendoLocalizacao ? (
         <>
-          <Text style={styles.rotulo}>3. Categoria</Text>
+          <Text style={styles.rotulo}>
+            3. Categoria
+          </Text>
 
           <View style={styles.opcoes}>
             {categorias.map((item) => (
@@ -290,7 +416,8 @@ export default function Registro() {
                 key={item.valor}
                 style={[
                   styles.opcao,
-                  categoria === item.valor && styles.opcaoSelecionada,
+                  categoria === item.valor &&
+                    styles.opcaoSelecionada,
                 ]}
                 onPress={() => {
                   setCategoria(item.valor);
@@ -311,7 +438,9 @@ export default function Registro() {
             ))}
           </View>
 
-          <Text style={styles.rotulo}>4. Gravidade</Text>
+          <Text style={styles.rotulo}>
+            4. Gravidade
+          </Text>
 
           <View style={styles.opcoes}>
             {gravidades.map((item) => (
@@ -319,7 +448,8 @@ export default function Registro() {
                 key={item.valor}
                 style={[
                   styles.opcao,
-                  gravidade === item.valor && styles.opcaoSelecionada,
+                  gravidade === item.valor &&
+                    styles.opcaoSelecionada,
                 ]}
                 onPress={() => {
                   setGravidade(item.valor);
@@ -340,7 +470,9 @@ export default function Registro() {
             ))}
           </View>
 
-          <Text style={styles.rotulo}>5. Descrição</Text>
+          <Text style={styles.rotulo}>
+            5. Descrição
+          </Text>
 
           <TextInput
             style={styles.descricao}
@@ -374,7 +506,9 @@ export default function Registro() {
       ) : null}
 
       {mensagem ? (
-        <Text style={styles.mensagem}>{mensagem}</Text>
+        <Text style={styles.mensagem}>
+          {mensagem}
+        </Text>
       ) : null}
     </ScrollView>
   );
@@ -406,10 +540,48 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
 
+  ajuda: {
+    marginBottom: 10,
+  },
+
+  listaFotos: {
+    gap: 10,
+    paddingBottom: 4,
+  },
+
+  cartaoFoto: {
+    width: 220,
+  },
+
   foto: {
-    width: '100%',
-    height: 240,
+    width: 220,
+    height: 165,
     borderRadius: 8,
+  },
+
+  numeroFoto: {
+    textAlign: 'center',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+
+  botaoRemoverFoto: {
+    borderWidth: 1,
+    borderColor: '#b00020',
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 6,
+  },
+
+  textoBotaoRemoverFoto: {
+    color: '#b00020',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+  limiteFotos: {
+    textAlign: 'center',
+    marginTop: 12,
   },
 
   status: {
