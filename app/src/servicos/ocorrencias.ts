@@ -1,66 +1,90 @@
+import {
+  enviarFotoStorage,
+  FotoEnviada,
+  removerFotosStorage,
+} from './fotos';
 import { supabase } from './supabase';
 
 type NovaOcorrencia = {
   usuarioId: string;
-  fotoUri: string;
+  fotoUris: string[];
   latitude: number;
   longitude: number;
-  categoria: 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO';
-  gravidade: 'LEVE' | 'MODERADO' | 'GRAVE';
+
+  categoria:
+    | 'PAVIMENTACAO'
+    | 'ILUMINACAO'
+    | 'ESGOTO'
+    | 'CALCAMENTO';
+
+  gravidade:
+    | 'LEVE'
+    | 'MODERADO'
+    | 'GRAVE';
+
   descricao: string;
 };
 
-async function enviarFoto(usuarioId: string, fotoUri: string) {
-  const resposta = await fetch(fotoUri);
-  const arquivo = await resposta.arrayBuffer();
-
-  const nomeArquivo = `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}.jpg`;
-
-  const caminho = `${usuarioId}/${nomeArquivo}`;
-
-  const { error } = await supabase.storage
-    .from('fotos')
-    .upload(caminho, arquivo, {
-      contentType: 'image/jpeg',
-      upsert: false,
-    });
-
-  if (error) {
-    throw new Error(`Erro ao enviar foto: ${error.message}`);
+export async function registrarOcorrencia(
+  dados: NovaOcorrencia
+) {
+  if (
+    dados.fotoUris.length < 1 ||
+    dados.fotoUris.length > 3
+  ) {
+    throw new Error(
+      'A ocorrência deve possuir entre 1 e 3 fotos.'
+    );
   }
 
-  const { data } = supabase.storage
-    .from('fotos')
-    .getPublicUrl(caminho);
+  const fotosEnviadas: FotoEnviada[] = [];
 
-  return data.publicUrl;
-}
+  try {
+    for (const fotoUri of dados.fotoUris) {
+      const foto = await enviarFotoStorage(
+        dados.usuarioId,
+        fotoUri,
+        'ocorrencias'
+      );
 
-export async function registrarOcorrencia(dados: NovaOcorrencia) {
-  const fotoUrl = await enviarFoto(
-    dados.usuarioId,
-    dados.fotoUri
-  );
+      fotosEnviadas.push(foto);
+    }
 
-  const { data, error } = await supabase
-    .from('ocorrencias')
-    .insert({
-      usuario_id: dados.usuarioId,
-      categoria: dados.categoria,
-      gravidade: dados.gravidade,
-      descricao: dados.descricao.trim(),
-      latitude: dados.latitude,
-      longitude: dados.longitude,
-      foto_url: fotoUrl,
-    })
-    .select('id')
-    .single();
+    const { data, error } = await supabase.rpc(
+      'registrar_ocorrencia_com_fotos',
+      {
+        p_categoria: dados.categoria,
+        p_gravidade: dados.gravidade,
+        p_descricao: dados.descricao.trim(),
+        p_latitude: dados.latitude,
+        p_longitude: dados.longitude,
 
-  if (error) {
-    throw new Error(`Erro ao registrar ocorrência: ${error.message}`);
+        p_foto_urls:
+          fotosEnviadas.map(
+            (foto) => foto.url
+          ),
+
+        p_caminhos_storage:
+          fotosEnviadas.map(
+            (foto) => foto.caminho
+          ),
+      }
+    );
+
+    if (error) {
+      throw new Error(
+        `Erro ao registrar ocorrência: ${error.message}`
+      );
+    }
+
+    return String(data);
+  } catch (error) {
+    await removerFotosStorage(
+      fotosEnviadas.map(
+        (foto) => foto.caminho
+      )
+    );
+
+    throw error;
   }
-
-  return data.id;
 }
