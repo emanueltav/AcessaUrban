@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { supabase } from '../servicos/supabase';
 
@@ -22,53 +23,82 @@ export default function Ranking() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
-  useEffect(() => {
-    async function carregarRanking() {
-      setCarregando(true);
-      setErro('');
+  useFocusEffect(
+    useCallback(() => {
+      let ativo = true;
 
-      const { data, error } = await supabase
-        .from('bairros')
-        .select(
-          'id, nome, municipio, uf, nota_atual'
-        )
-        .order('nota_atual', {
-          ascending: false,
-        })
-        .order('municipio', {
-          ascending: true,
-        })
-        .order('nome', {
-          ascending: true,
-        });
+      async function carregarRanking() {
+        try {
+          setCarregando(true);
+          setErro('');
 
-      if (error) {
-        console.error(
-          'Erro ao carregar ranking:',
-          error
-        );
+          const { data, error } = await supabase
+            .from('bairros')
+            .select(
+              'id, nome, municipio, uf, nota_atual'
+            )
+            .order('nota_atual', {
+              ascending: false,
+            })
+            .order('municipio', {
+              ascending: true,
+            })
+            .order('nome', {
+              ascending: true,
+            });
 
-        setErro(
-          'Não foi possível carregar o ranking.'
-        );
+          if (!ativo) {
+            return;
+          }
 
-        setCarregando(false);
-        return;
+          if (error) {
+            console.error(
+              'Erro ao carregar ranking:',
+              error
+            );
+
+            setErro(
+              'Não foi possível carregar o ranking.'
+            );
+
+            return;
+          }
+
+          const bairrosFormatados: Bairro[] = (
+            data ?? []
+          ).map((bairro) => ({
+            id: String(bairro.id),
+            nome: String(bairro.nome),
+            municipio: String(bairro.municipio),
+            uf: String(bairro.uf),
+            nota_atual: Number(bairro.nota_atual),
+          }));
+
+          setBairros(bairrosFormatados);
+        } catch (error) {
+          if (error instanceof Error) {
+            console.error(error.message);
+          }
+
+          if (ativo) {
+            setErro(
+              'Não foi possível carregar o ranking.'
+            );
+          }
+        } finally {
+          if (ativo) {
+            setCarregando(false);
+          }
+        }
       }
 
-      const bairrosFormatados: Bairro[] = (
-        data ?? []
-      ).map((bairro) => ({
-        ...bairro,
-        nota_atual: Number(bairro.nota_atual),
-      }));
+      carregarRanking();
 
-      setBairros(bairrosFormatados);
-      setCarregando(false);
-    }
-
-    carregarRanking();
-  }, []);
+      return () => {
+        ativo = false;
+      };
+    }, [])
+  );
 
   function obterPosicao(index: number) {
     if (index === 0) {
