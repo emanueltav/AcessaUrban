@@ -7,6 +7,7 @@ import Registro from '../telas/registro';
 import Ranking from '../telas/ranking';
 import Conta from '../telas/conta';
 import Ocorrencias from '../telas/ocorrencias';
+import Pracas from '../telas/pracas';
 
 export type RootStackParamList = {
   Principal: undefined;
@@ -39,6 +40,11 @@ function AbasPrincipais() {
       <Tab.Screen
         name="Ocorrências"
         component={Ocorrencias}
+      />
+
+      <Tab.Screen
+        name="Praças"
+        component={Pracas}
       />
 
       <Tab.Screen
