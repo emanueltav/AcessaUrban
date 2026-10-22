@@ -30,6 +30,19 @@ const CENTRO_INICIAL: [number, number] = [
   -5.7945,
 ];
 
+function simboloStatus(
+  status: OcorrenciaMapa['status']
+) {
+  switch (status) {
+    case 'PENDENTE_VALIDACAO':
+      return '?';
+    case 'ATIVA':
+      return '!';
+    case 'RESOLVIDA':
+      return '✓';
+  }
+}
+
 export default function Mapa() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList>>();
@@ -129,8 +142,20 @@ export default function Mapa() {
             });
           }}
         >
-          <View style={styles.marcador}>
-            <Text style={styles.textoMarcador}>!</Text>
+          <View
+            style={[
+              styles.marcador,
+              ocorrencia.status === 'PENDENTE_VALIDACAO' &&
+                styles.marcadorPendente,
+              ocorrencia.status === 'ATIVA' &&
+                styles.marcadorAtiva,
+              ocorrencia.status === 'RESOLVIDA' &&
+                styles.marcadorResolvida,
+            ]}
+          >
+            <Text style={styles.textoMarcador}>
+              {simboloStatus(ocorrencia.status)}
+            </Text>
           </View>
         </Marker>
       ))}
@@ -161,9 +186,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#222222',
     borderWidth: 2,
     borderColor: '#ffffff',
+  },
+
+  marcadorPendente: {
+    backgroundColor: '#666666',
+  },
+
+  marcadorAtiva: {
+    backgroundColor: '#222222',
+  },
+
+  marcadorResolvida: {
+    backgroundColor: '#2e7d32',
   },
 
   textoMarcador: {

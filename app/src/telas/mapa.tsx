@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -6,11 +6,25 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import {
   listarOcorrenciasMapa,
   OcorrenciaMapa,
 } from '../servicos/mapa';
+
+function tituloStatus(
+  status: OcorrenciaMapa['status']
+) {
+  switch (status) {
+    case 'PENDENTE_VALIDACAO':
+      return 'Aguardando validação';
+    case 'ATIVA':
+      return 'Ativa';
+    case 'RESOLVIDA':
+      return 'Resolvida recentemente';
+  }
+}
 
 export default function Mapa() {
   const [ocorrencias, setOcorrencias] = useState<
@@ -19,30 +33,44 @@ export default function Mapa() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
-  useEffect(() => {
-    async function carregarOcorrencias() {
-      try {
-        setCarregando(true);
-        setErro('');
+  useFocusEffect(
+    useCallback(() => {
+      let ativo = true;
 
-        const dados = await listarOcorrenciasMapa();
+      async function carregarOcorrencias() {
+        try {
+          setCarregando(true);
+          setErro('');
 
-        setOcorrencias(dados);
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error(error.message);
+          const dados = await listarOcorrenciasMapa();
+
+          if (ativo) {
+            setOcorrencias(dados);
+          }
+        } catch (error) {
+          if (error instanceof Error) {
+            console.error(error.message);
+          }
+
+          if (ativo) {
+            setErro(
+              'Não foi possível carregar as ocorrências.'
+            );
+          }
+        } finally {
+          if (ativo) {
+            setCarregando(false);
+          }
         }
-
-        setErro(
-          'Não foi possível carregar as ocorrências.'
-        );
-      } finally {
-        setCarregando(false);
       }
-    }
 
-    carregarOcorrencias();
-  }, []);
+      carregarOcorrencias();
+
+      return () => {
+        ativo = false;
+      };
+    }, [])
+  );
 
   if (carregando) {
     return (
@@ -78,7 +106,8 @@ export default function Mapa() {
 
       <Text style={styles.aviso}>
         O mapa interativo será exibido no aplicativo móvel.
-        No navegador, as ocorrências são listadas abaixo.
+        No navegador, as ocorrências atuais e as resolvidas
+        nos últimos 30 dias são listadas abaixo.
       </Text>
 
       {ocorrencias.length === 0 ? (
@@ -101,7 +130,7 @@ export default function Mapa() {
               </Text>
 
               <Text>
-                Status: {item.status}
+                Status: {tituloStatus(item.status)}
               </Text>
 
               {item.bairro ? (
