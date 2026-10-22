@@ -14,12 +14,20 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  RouteProp,
+  NavigationProp,
+  useFocusEffect,
+  useNavigation,
   useRoute,
 } from '@react-navigation/native';
 
 import { useAutenticacao } from '../contextos/autenticacao';
 import type { RootStackParamList } from '../navegacao/rotas';
+import {
+  buscarResumoOcorrencias,
+  diasDesde,
+  OcorrenciaResumoGeral,
+  ResumoOcorrenciasGeral,
+} from '../servicos/ocorrencias';
 import {
   buscarHistoricoOcorrencia,
   buscarOcorrencia,
@@ -139,13 +147,12 @@ function mensagemErroVoto(error: unknown) {
   return 'Não foi possível registrar seu voto.';
 }
 
-export default function Ocorrencias() {
+function DetalheOcorrencia({
+  ocorrenciaId,
+}: {
+  ocorrenciaId: string;
+}) {
   const { sessao } = useAutenticacao();
-
-  const route =
-    useRoute<
-      RouteProp<RootStackParamList, 'Ocorrencia'>
-    >();
 
   const [ocorrencia, setOcorrencia] =
     useState<OcorrenciaDetalhe | null>(null);
@@ -167,8 +174,6 @@ export default function Ocorrencias() {
   const [mensagem, setMensagem] =
     useState('');
 
-  const ocorrenciaId =
-    route.params.ocorrenciaId;
   const usuarioId =
     sessao?.user.id ?? null;
 
@@ -1096,6 +1101,353 @@ export default function Ocorrencias() {
   );
 }
 
+
+const resumoGeralInicial:
+  ResumoOcorrenciasGeral = {
+    ativas: 0,
+    resolvidasMes: 0,
+    tempoMedioResolucaoDias: null,
+    ocorrenciasAtivas: [],
+    ocorrenciasAnteriores: [],
+  };
+
+function tituloCategoriaGeral(
+  categoria: string
+) {
+  switch (categoria) {
+    case 'PAVIMENTACAO':
+      return 'Pavimentação';
+    case 'ILUMINACAO':
+      return 'Iluminação';
+    case 'ESGOTO':
+      return 'Esgoto';
+    case 'CALCAMENTO':
+      return 'Calçamento';
+    default:
+      return categoria;
+  }
+}
+
+function CartaoOcorrencia({
+  ocorrencia,
+  onPress,
+}: {
+  ocorrencia: OcorrenciaResumoGeral;
+  onPress: () => void;
+}) {
+  const dataAtiva =
+    ocorrencia.ativado_em ??
+    ocorrencia.criado_em;
+
+  const dias =
+    diasDesde(dataAtiva);
+
+  return (
+    <Pressable
+      style={styles.itemGeral}
+      onPress={onPress}
+    >
+      <Text style={styles.nomeItemGeral}>
+        {tituloCategoriaGeral(
+          ocorrencia.categoria
+        )}
+      </Text>
+
+      {ocorrencia.bairro ? (
+        <Text>
+          {ocorrencia.bairro.nome} —{' '}
+          {ocorrencia.bairro.municipio}/
+          {ocorrencia.bairro.uf}
+        </Text>
+      ) : null}
+
+      {ocorrencia.resolvido_em ? (
+        <Text>
+          Resolvida em{' '}
+          {formatarData(
+            ocorrencia.resolvido_em
+          )}
+        </Text>
+      ) : (
+        <Text>
+          {dias === 0
+            ? 'Ativa hoje'
+            : \`Ativa há \${dias} \${
+                dias === 1
+                  ? 'dia'
+                  : 'dias'
+              }\`}
+        </Text>
+      )}
+
+      <Text>
+        Gravidade:{' '}
+        {ocorrencia.gravidade}
+      </Text>
+    </Pressable>
+  );
+}
+
+function PainelOcorrencias() {
+  const navigation =
+    useNavigation<
+      NavigationProp<
+        RootStackParamList
+      >
+    >();
+
+  const [
+    resumoGeral,
+    setResumoGeral,
+  ] = useState<
+    ResumoOcorrenciasGeral
+  >(resumoGeralInicial);
+
+  const [
+    carregandoGeral,
+    setCarregandoGeral,
+  ] = useState(true);
+
+  const [
+    erroGeral,
+    setErroGeral,
+  ] = useState('');
+
+  const [
+    anterioresAbertas,
+    setAnterioresAbertas,
+  ] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let ativo = true;
+
+      async function carregar() {
+        try {
+          setCarregandoGeral(true);
+          setErroGeral('');
+
+          const dados =
+            await buscarResumoOcorrencias();
+
+          if (ativo) {
+            setResumoGeral(dados);
+          }
+        } catch (error) {
+          if (
+            error instanceof Error
+          ) {
+            console.error(
+              error.message
+            );
+          }
+
+          if (ativo) {
+            setErroGeral(
+              'Não foi possível carregar as ocorrências.'
+            );
+          }
+        } finally {
+          if (ativo) {
+            setCarregandoGeral(false);
+          }
+        }
+      }
+
+      carregar();
+
+      return () => {
+        ativo = false;
+      };
+    }, [])
+  );
+
+  if (carregandoGeral) {
+    return (
+      <View style={styles.centralizado}>
+        <ActivityIndicator />
+        <Text style={styles.mensagem}>
+          Carregando ocorrências...
+        </Text>
+      </View>
+    );
+  }
+
+  if (erroGeral) {
+    return (
+      <View style={styles.centralizado}>
+        <Text style={styles.mensagem}>
+          {erroGeral}
+        </Text>
+      </View>
+    );
+  }
+
+  const abrirOcorrencia = (
+    ocorrenciaId: string
+  ) => {
+    navigation.navigate(
+      'Ocorrencia',
+      { ocorrenciaId }
+    );
+  };
+
+  return (
+    <ScrollView
+      contentContainerStyle={
+        styles.container
+      }
+    >
+      <Text style={styles.tituloGeral}>
+        Ocorrências
+      </Text>
+
+      <View style={styles.metricas}>
+        <View style={styles.metrica}>
+          <Text style={styles.valorMetrica}>
+            {resumoGeral.ativas}
+          </Text>
+          <Text style={styles.nomeMetrica}>
+            Ativas agora
+          </Text>
+        </View>
+
+        <View style={styles.metrica}>
+          <Text style={styles.valorMetrica}>
+            {resumoGeral.resolvidasMes}
+          </Text>
+          <Text style={styles.nomeMetrica}>
+            Resolvidas neste mês
+          </Text>
+        </View>
+
+        <View style={styles.metrica}>
+          <Text style={styles.valorMetrica}>
+            {resumoGeral
+              .tempoMedioResolucaoDias ===
+            null
+              ? '—'
+              : Math.round(
+                  resumoGeral
+                    .tempoMedioResolucaoDias
+                )}
+          </Text>
+          <Text style={styles.nomeMetrica}>
+            {resumoGeral
+              .tempoMedioResolucaoDias ===
+            null
+              ? 'Tempo médio'
+              : 'Dias em média'}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.subtitulo}>
+        Ocorrências ativas
+      </Text>
+
+      {resumoGeral
+        .ocorrenciasAtivas.length ===
+      0 ? (
+        <Text style={styles.mensagem}>
+          Nenhuma ocorrência ativa
+          neste momento.
+        </Text>
+      ) : (
+        resumoGeral
+          .ocorrenciasAtivas
+          .map((ocorrencia) => (
+            <CartaoOcorrencia
+              key={ocorrencia.id}
+              ocorrencia={ocorrencia}
+              onPress={() =>
+                abrirOcorrencia(
+                  ocorrencia.id
+                )
+              }
+            />
+          ))
+      )}
+
+      <Pressable
+        style={styles.botaoAnteriores}
+        onPress={() =>
+          setAnterioresAbertas(
+            (atual) => !atual
+          )
+        }
+      >
+        <Text
+          style={
+            styles.textoBotaoAnteriores
+          }
+        >
+          {anterioresAbertas
+            ? 'Ocultar ocorrências anteriores'
+            : 'Ver ocorrências anteriores >'}
+        </Text>
+      </Pressable>
+
+      {anterioresAbertas ? (
+        <View style={styles.listaAnteriores}>
+          <Text style={styles.subtitulo}>
+            Ocorrências anteriores
+          </Text>
+
+          {resumoGeral
+            .ocorrenciasAnteriores
+            .length === 0 ? (
+            <Text style={styles.mensagem}>
+              Ainda não existem
+              ocorrências resolvidas há
+              mais de 30 dias.
+            </Text>
+          ) : (
+            resumoGeral
+              .ocorrenciasAnteriores
+              .map((ocorrencia) => (
+                <CartaoOcorrencia
+                  key={ocorrencia.id}
+                  ocorrencia={
+                    ocorrencia
+                  }
+                  onPress={() =>
+                    abrirOcorrencia(
+                      ocorrencia.id
+                    )
+                  }
+                />
+              ))
+          )}
+        </View>
+      ) : null}
+    </ScrollView>
+  );
+}
+
+export default function Ocorrencias() {
+  const route = useRoute();
+
+  const ocorrenciaId =
+    (
+      route.params as
+        | {
+            ocorrenciaId?: string;
+          }
+        | undefined
+    )?.ocorrenciaId;
+
+  if (!ocorrenciaId) {
+    return <PainelOcorrencias />;
+  }
+
+  return (
+    <DetalheOcorrencia
+      ocorrenciaId={ocorrenciaId}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     padding: 20,
@@ -1296,5 +1648,65 @@ const styles = StyleSheet.create({
 
   semFotos: {
     fontStyle: 'italic',
+  },
+
+  tituloGeral: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+  metricas: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  metrica: {
+    width: '48%',
+    borderWidth: 1,
+    borderColor: '#dddddd',
+    borderRadius: 10,
+    padding: 16,
+    minHeight: 100,
+    justifyContent: 'center',
+  },
+
+  valorMetrica: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+  nomeMetrica: {
+    textAlign: 'center',
+    marginTop: 4,
+  },
+
+  itemGeral: {
+    borderWidth: 1,
+    borderColor: '#dddddd',
+    borderRadius: 10,
+    padding: 14,
+    gap: 5,
+  },
+
+  nomeItemGeral: {
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+
+  botaoAnteriores: {
+    marginTop: 4,
+    paddingVertical: 10,
+  },
+
+  textoBotaoAnteriores: {
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+
+  listaAnteriores: {
+    gap: 10,
   },
 });

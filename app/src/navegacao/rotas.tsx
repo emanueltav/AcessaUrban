@@ -37,6 +37,11 @@ function AbasPrincipais() {
       />
 
       <Tab.Screen
+        name="Ocorrências"
+        component={Ocorrencias}
+      />
+
+      <Tab.Screen
         name="Ranking"
         component={Ranking}
       />
