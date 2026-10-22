@@ -14,7 +14,6 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useAutenticacao } from '../contextos/autenticacao';
-
 import {
   atualizarBairroPerfil,
   BairroPerfil,
@@ -22,101 +21,63 @@ import {
   buscarPerfil,
   PerfilUsuario,
 } from '../servicos/perfil';
-
 import { supabase } from '../servicos/supabase';
 
 export default function Conta() {
-  const { sessao, carregando } =
-    useAutenticacao();
+  const { sessao, carregando } = useAutenticacao();
 
-  const [cadastro, setCadastro] =
+  const [cadastro, setCadastro] = useState(false);
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [processando, setProcessando] = useState(false);
+  const [mensagem, setMensagem] = useState('');
+  const [perfil, setPerfil] = useState<PerfilUsuario | null>(
+    null
+  );
+  const [carregandoPerfil, setCarregandoPerfil] =
+    useState(false);
+  const [editandoBairro, setEditandoBairro] =
+    useState(false);
+  const [buscaBairro, setBuscaBairro] = useState('');
+  const [resultadosBairro, setResultadosBairro] =
+    useState<BairroPerfil[]>([]);
+  const [pesquisandoBairro, setPesquisandoBairro] =
     useState(false);
 
-  const [nome, setNome] =
-    useState('');
-
-  const [email, setEmail] =
-    useState('');
-
-  const [senha, setSenha] =
-    useState('');
-
-  const [
-    processando,
-    setProcessando,
-  ] = useState(false);
-
-  const [mensagem, setMensagem] =
-    useState('');
-
-  const [perfil, setPerfil] =
-    useState<PerfilUsuario | null>(
-      null
-    );
-
-  const [
-    carregandoPerfil,
-    setCarregandoPerfil,
-  ] = useState(false);
-
-  const [
-    editandoBairro,
-    setEditandoBairro,
-  ] = useState(false);
-
-  const [
-    buscaBairro,
-    setBuscaBairro,
-  ] = useState('');
-
-  const [
-    resultadosBairro,
-    setResultadosBairro,
-  ] = useState<BairroPerfil[]>([]);
-
-  const [
-    pesquisandoBairro,
-    setPesquisandoBairro,
-  ] = useState(false);
-
-  const usuarioId =
-    sessao?.user.id ?? null;
+  const usuarioId = sessao?.user.id ?? null;
 
   useFocusEffect(
     useCallback(() => {
       if (!usuarioId) {
         setPerfil(null);
+        setCarregandoPerfil(false);
         return;
       }
 
+      const idUsuario = usuarioId;
       let ativo = true;
 
       async function carregarPerfil() {
         try {
           setCarregandoPerfil(true);
 
-          const dados =
-            await buscarPerfil(
-              usuarioId
-            );
+          const dados = await buscarPerfil(idUsuario);
 
           if (ativo) {
             setPerfil(dados);
           }
         } catch (error) {
-          if (
-            ativo &&
-            error instanceof Error
-          ) {
+          if (ativo) {
             setMensagem(
-              error.message
+              error instanceof Error
+                ? error.message
+                : 'Não foi possível carregar o perfil.'
             );
           }
         } finally {
           if (ativo) {
-            setCarregandoPerfil(
-              false
-            );
+            setCarregandoPerfil(false);
           }
         }
       }
@@ -130,42 +91,42 @@ export default function Conta() {
   );
 
   async function entrar() {
-    if (
-      !email.trim() ||
-      !senha
-    ) {
-      setMensagem(
-        'Informe o e-mail e a senha.'
-      );
+    if (!email.trim() || !senha) {
+      setMensagem('Informe o e-mail e a senha.');
       return;
     }
 
-    setProcessando(true);
-    setMensagem('');
+    if (processando) {
+      return;
+    }
 
-    const { error } =
-      await supabase.auth
-        .signInWithPassword({
+    try {
+      setProcessando(true);
+      setMensagem('');
+
+      const { error } =
+        await supabase.auth.signInWithPassword({
           email: email.trim(),
           password: senha,
         });
 
-    if (error) {
-      setMensagem(error.message);
+      if (error) {
+        setMensagem(error.message);
+      }
+    } catch (error) {
+      setMensagem(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível entrar na conta.'
+      );
+    } finally {
+      setProcessando(false);
     }
-
-    setProcessando(false);
   }
 
   async function criarConta() {
-    if (
-      !nome.trim() ||
-      !email.trim() ||
-      !senha
-    ) {
-      setMensagem(
-        'Preencha nome, e-mail e senha.'
-      );
+    if (!nome.trim() || !email.trim() || !senha) {
+      setMensagem('Preencha nome, e-mail e senha.');
       return;
     }
 
@@ -176,14 +137,17 @@ export default function Conta() {
       return;
     }
 
-    setProcessando(true);
-    setMensagem('');
+    if (processando) {
+      return;
+    }
 
-    const { error } =
-      await supabase.auth.signUp({
+    try {
+      setProcessando(true);
+      setMensagem('');
+
+      const { error } = await supabase.auth.signUp({
         email: email.trim(),
         password: senha,
-
         options: {
           data: {
             nome: nome.trim(),
@@ -191,31 +155,48 @@ export default function Conta() {
         },
       });
 
-    if (error) {
-      setMensagem(error.message);
+      if (error) {
+        setMensagem(error.message);
+      }
+    } catch (error) {
+      setMensagem(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível criar a conta.'
+      );
+    } finally {
+      setProcessando(false);
     }
-
-    setProcessando(false);
   }
 
   async function sair() {
-    setProcessando(true);
-
-    const { error } =
-      await supabase.auth.signOut();
-
-    if (error) {
-      setMensagem(error.message);
+    if (processando) {
+      return;
     }
 
-    setProcessando(false);
+    try {
+      setProcessando(true);
+      setMensagem('');
+
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        setMensagem(error.message);
+      }
+    } catch (error) {
+      setMensagem(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível sair da conta.'
+      );
+    } finally {
+      setProcessando(false);
+    }
   }
 
   async function pesquisarBairros() {
     if (!buscaBairro.trim()) {
-      setMensagem(
-        'Digite o nome de um bairro.'
-      );
+      setMensagem('Digite o nome de um bairro.');
       return;
     }
 
@@ -223,19 +204,12 @@ export default function Conta() {
       setPesquisandoBairro(true);
       setMensagem('');
 
-      const bairros =
-        await buscarBairros(
-          buscaBairro
-        );
+      const bairros = await buscarBairros(buscaBairro);
 
-      setResultadosBairro(
-        bairros
-      );
+      setResultadosBairro(bairros);
 
       if (bairros.length === 0) {
-        setMensagem(
-          'Nenhum bairro encontrado.'
-        );
+        setMensagem('Nenhum bairro encontrado.');
       }
     } catch (error) {
       setMensagem(
@@ -251,10 +225,7 @@ export default function Conta() {
   async function selecionarBairro(
     bairro: BairroPerfil
   ) {
-    if (
-      !usuarioId ||
-      processando
-    ) {
+    if (!usuarioId || processando) {
       return;
     }
 
@@ -280,10 +251,7 @@ export default function Conta() {
       setEditandoBairro(false);
       setBuscaBairro('');
       setResultadosBairro([]);
-
-      setMensagem(
-        'Bairro atualizado com sucesso.'
-      );
+      setMensagem('Bairro atualizado com sucesso.');
     } catch (error) {
       setMensagem(
         error instanceof Error
@@ -296,10 +264,7 @@ export default function Conta() {
   }
 
   async function removerBairro() {
-    if (
-      !usuarioId ||
-      processando
-    ) {
+    if (!usuarioId || processando) {
       return;
     }
 
@@ -307,10 +272,7 @@ export default function Conta() {
       setProcessando(true);
       setMensagem('');
 
-      await atualizarBairroPerfil(
-        usuarioId,
-        null
-      );
+      await atualizarBairroPerfil(usuarioId, null);
 
       setPerfil((atual) =>
         atual
@@ -325,10 +287,7 @@ export default function Conta() {
       setEditandoBairro(false);
       setBuscaBairro('');
       setResultadosBairro([]);
-
-      setMensagem(
-        'Bairro removido do perfil.'
-      );
+      setMensagem('Bairro removido do perfil.');
     } catch (error) {
       setMensagem(
         error instanceof Error
@@ -351,9 +310,7 @@ export default function Conta() {
   if (sessao) {
     return (
       <ScrollView
-        contentContainerStyle={
-          styles.container
-        }
+        contentContainerStyle={styles.container}
       >
         <Text style={styles.titulo}>
           Minha Conta
@@ -371,9 +328,7 @@ export default function Conta() {
           <ActivityIndicator />
         ) : (
           <View style={styles.bloco}>
-            <Text
-              style={styles.subtitulo}
-            >
+            <Text style={styles.subtitulo}>
               Meu perfil
             </Text>
 
@@ -388,18 +343,10 @@ export default function Conta() {
             </Text>
 
             {perfil?.bairro ? (
-              <Text
-                style={
-                  styles.bairroAtual
-                }
-              >
-                🏠{' '}
-                {perfil.bairro.nome} —{' '}
-                {
-                  perfil.bairro
-                    .municipio
-                }
-                /{perfil.bairro.uf}
+              <Text style={styles.bairroAtual}>
+                🏠 {perfil.bairro.nome} —{' '}
+                {perfil.bairro.municipio}/
+                {perfil.bairro.uf}
               </Text>
             ) : (
               <Text>
@@ -408,22 +355,18 @@ export default function Conta() {
             )}
 
             <Pressable
-              style={
-                styles.botaoSecundario
-              }
+              style={styles.botaoSecundario}
               onPress={() => {
                 setEditandoBairro(
-                  !editandoBairro
+                  (atual) => !atual
                 );
-
                 setMensagem('');
               }}
               disabled={processando}
             >
               <Text
                 style={
-                  styles
-                    .textoBotaoSecundario
+                  styles.textoBotaoSecundario
                 }
               >
                 {perfil?.bairro
@@ -433,30 +376,18 @@ export default function Conta() {
             </Pressable>
 
             {editandoBairro ? (
-              <View
-                style={
-                  styles.selecaoBairro
-                }
-              >
+              <View style={styles.selecaoBairro}>
                 <TextInput
                   style={styles.campo}
                   placeholder="Digite o nome do bairro"
                   value={buscaBairro}
-                  onChangeText={
-                    setBuscaBairro
-                  }
-                  editable={
-                    !processando
-                  }
+                  onChangeText={setBuscaBairro}
+                  editable={!processando}
                 />
 
                 <Pressable
-                  style={
-                    styles.botaoSecundario
-                  }
-                  onPress={
-                    pesquisarBairros
-                  }
+                  style={styles.botaoSecundario}
+                  onPress={pesquisarBairros}
                   disabled={
                     pesquisandoBairro ||
                     processando
@@ -464,8 +395,7 @@ export default function Conta() {
                 >
                   <Text
                     style={
-                      styles
-                        .textoBotaoSecundario
+                      styles.textoBotaoSecundario
                     }
                   >
                     {pesquisandoBairro
@@ -479,38 +409,27 @@ export default function Conta() {
                     <Pressable
                       key={bairro.id}
                       style={[
-                        styles
-                          .opcaoBairro,
-
-                        perfil
-                          ?.bairro_id ===
+                        styles.opcaoBairro,
+                        perfil?.bairro_id ===
                           bairro.id &&
-                          styles
-                            .opcaoBairroAtual,
+                          styles.opcaoBairroAtual,
                       ]}
                       onPress={() =>
                         selecionarBairro(
                           bairro
                         )
                       }
-                      disabled={
-                        processando
-                      }
+                      disabled={processando}
                     >
                       <Text
-                        style={
-                          styles
-                            .nomeBairro
-                        }
+                        style={styles.nomeBairro}
                       >
                         {bairro.nome}
                       </Text>
 
                       <Text>
-                        {
-                          bairro.municipio
-                        }
-                        /{bairro.uf}
+                        {bairro.municipio}/
+                        {bairro.uf}
                       </Text>
                     </Pressable>
                   )
@@ -518,25 +437,14 @@ export default function Conta() {
 
                 {perfil?.bairro ? (
                   <Pressable
-                    style={
-                      styles
-                        .botaoRemover
-                    }
-                    onPress={
-                      removerBairro
-                    }
-                    disabled={
-                      processando
-                    }
+                    style={styles.botaoRemover}
+                    onPress={removerBairro}
+                    disabled={processando}
                   >
                     <Text
-                      style={
-                        styles
-                          .textoRemover
-                      }
+                      style={styles.textoRemover}
                     >
-                      Remover bairro do
-                      perfil
+                      Remover bairro do perfil
                     </Text>
                   </Pressable>
                 ) : null}
@@ -550,9 +458,7 @@ export default function Conta() {
           onPress={sair}
           disabled={processando}
         >
-          <Text
-            style={styles.textoBotao}
-          >
+          <Text style={styles.textoBotao}>
             {processando
               ? 'Aguarde...'
               : 'Sair'}
@@ -583,6 +489,7 @@ export default function Conta() {
             placeholder="Nome"
             value={nome}
             onChangeText={setNome}
+            editable={!processando}
           />
         ) : null}
 
@@ -593,6 +500,7 @@ export default function Conta() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          editable={!processando}
         />
 
         <TextInput
@@ -602,6 +510,7 @@ export default function Conta() {
           onChangeText={setSenha}
           autoCapitalize="none"
           secureTextEntry
+          editable={!processando}
         />
 
         <Pressable
@@ -613,9 +522,7 @@ export default function Conta() {
           }
           disabled={processando}
         >
-          <Text
-            style={styles.textoBotao}
-          >
+          <Text style={styles.textoBotao}>
             {processando
               ? 'Aguarde...'
               : cadastro
@@ -626,9 +533,12 @@ export default function Conta() {
 
         <Pressable
           onPress={() => {
-            setCadastro(!cadastro);
+            setCadastro(
+              (atual) => !atual
+            );
             setMensagem('');
           }}
+          disabled={processando}
         >
           <Text style={styles.link}>
             {cadastro
@@ -717,8 +627,7 @@ const styles = StyleSheet.create({
 
   link: {
     textAlign: 'center',
-    textDecorationLine:
-      'underline',
+    textDecorationLine: 'underline',
   },
 
   texto: {

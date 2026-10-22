@@ -14,44 +14,91 @@ type AutenticacaoContexto = {
   carregando: boolean;
 };
 
-const AutenticacaoContext = createContext<AutenticacaoContexto>({
-  sessao: null,
-  carregando: true,
-});
+const AutenticacaoContext =
+  createContext<AutenticacaoContexto>({
+    sessao: null,
+    carregando: true,
+  });
 
 type Props = {
   children: ReactNode;
 };
 
-export function AutenticacaoProvider({ children }: Props) {
-  const [sessao, setSessao] = useState<Session | null>(null);
-  const [carregando, setCarregando] = useState(true);
+export function AutenticacaoProvider({
+  children,
+}: Props) {
+  const [sessao, setSessao] =
+    useState<Session | null>(null);
+
+  const [carregando, setCarregando] =
+    useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSessao(data.session);
-      setCarregando(false);
-    });
+    let ativo = true;
+
+    async function carregarSessaoInicial() {
+      try {
+        const { data, error } =
+          await supabase.auth.getSession();
+
+        if (error) {
+          throw error;
+        }
+
+        if (ativo) {
+          setSessao(data.session);
+        }
+      } catch (error) {
+        console.error(
+          'Erro ao carregar sessão:',
+          error
+        );
+
+        if (ativo) {
+          setSessao(null);
+        }
+      } finally {
+        if (ativo) {
+          setCarregando(false);
+        }
+      }
+    }
+
+    carregarSessaoInicial();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_evento, novaSessao) => {
-      setSessao(novaSessao);
-      setCarregando(false);
-    });
+    } = supabase.auth.onAuthStateChange(
+      (_evento, novaSessao) => {
+        if (!ativo) {
+          return;
+        }
+
+        setSessao(novaSessao);
+        setCarregando(false);
+      }
+    );
 
     return () => {
+      ativo = false;
       subscription.unsubscribe();
     };
   }, []);
 
   return (
-    <AutenticacaoContext.Provider value={{ sessao, carregando }}>
+    <AutenticacaoContext.Provider
+      value={{
+        sessao,
+        carregando,
+      }}
+    >
       {children}
     </AutenticacaoContext.Provider>
   );
 }
 
 export function useAutenticacao() {
-  return useContext(AutenticacaoContext);
+  return useContext(
+    AutenticacaoContext
+  );
 }

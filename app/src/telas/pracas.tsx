@@ -12,17 +12,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {
-  useFocusEffect,
-} from '@react-navigation/native';
-import * as ImagePicker
-  from 'expo-image-picker';
-import * as Location
-  from 'expo-location';
+import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
-import {
-  useAutenticacao,
-} from '../contextos/autenticacao';
+import { useAutenticacao } from '../contextos/autenticacao';
 import {
   avaliarPraca,
   confirmarPraca,
@@ -31,14 +25,10 @@ import {
   registrarPraca,
 } from '../servicos/pracas';
 
-function textoBonus(
-  praca: Praca
-) {
+function textoBonus(praca: Praca) {
   if (
-    praca.status !==
-      'APROVADA' ||
-    praca.totalAvaliacoes <
-      2 ||
+    praca.status !== 'APROVADA' ||
+    praca.totalAvaliacoes < 2 ||
     praca.media === null ||
     praca.media < 4
   ) {
@@ -51,97 +41,44 @@ function textoBonus(
 }
 
 export default function Pracas() {
-  const { sessao } =
-    useAutenticacao();
+  const { sessao } = useAutenticacao();
 
-  const [pracas, setPracas] =
-    useState<Praca[]>([]);
+  const [pracas, setPracas] = useState<Praca[]>([]);
+  const [cadastrando, setCadastrando] = useState(false);
+  const [nome, setNome] = useState('');
+  const [fotoUris, setFotoUris] = useState<string[]>([]);
+  const [latitude, setLatitude] =
+    useState<number | null>(null);
+  const [longitude, setLongitude] =
+    useState<number | null>(null);
+  const [obtendoLocalizacao, setObtendoLocalizacao] =
+    useState(false);
+  const [notasConfirmacao, setNotasConfirmacao] =
+    useState<Record<string, number>>({});
+  const [carregando, setCarregando] = useState(true);
+  const [processando, setProcessando] =
+    useState<string | null>(null);
+  const [mensagem, setMensagem] = useState('');
 
-  const [
-    cadastrando,
-    setCadastrando,
-  ] = useState(false);
+  const usuarioId = sessao?.user.id ?? null;
 
-  const [nome, setNome] =
-    useState('');
+  const carregarPracas = useCallback(async () => {
+    try {
+      setCarregando(true);
+      setMensagem('');
 
-  const [
-    fotoUris,
-    setFotoUris,
-  ] = useState<string[]>([]);
-
-  const [
-    latitude,
-    setLatitude,
-  ] =
-    useState<number | null>(
-      null
-    );
-
-  const [
-    longitude,
-    setLongitude,
-  ] =
-    useState<number | null>(
-      null
-    );
-
-  const [
-    notasConfirmacao,
-    setNotasConfirmacao,
-  ] = useState<
-    Record<string, number>
-  >({});
-
-  const [
-    carregando,
-    setCarregando,
-  ] = useState(true);
-
-  const [
-    processando,
-    setProcessando,
-  ] =
-    useState<string | null>(
-      null
-    );
-
-  const [
-    mensagem,
-    setMensagem,
-  ] = useState('');
-
-  const usuarioId =
-    sessao?.user.id ?? null;
-
-  const carregarPracas =
-    useCallback(
-      async () => {
-        try {
-          setCarregando(
-            true
-          );
-
-          const dados =
-            await listarPracas(
-              usuarioId
-            );
-
-          setPracas(dados);
-        } catch (error) {
-          setMensagem(
-            error instanceof Error
-              ? error.message
-              : 'Não foi possível carregar as praças.'
-          );
-        } finally {
-          setCarregando(
-            false
-          );
-        }
-      },
-      [usuarioId]
-    );
+      const dados = await listarPracas(usuarioId);
+      setPracas(dados);
+    } catch (error) {
+      setMensagem(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível carregar as praças.'
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }, [usuarioId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -150,39 +87,49 @@ export default function Pracas() {
   );
 
   async function obterLocalizacao() {
-    const permissao =
-      await Location
-        .requestForegroundPermissionsAsync();
-
-    if (!permissao.granted) {
-      throw new Error(
-        'É necessário permitir o acesso à localização.'
-      );
+    if (obtendoLocalizacao) {
+      return;
     }
 
-    const localizacao =
-      await Location
-        .getCurrentPositionAsync({
-          accuracy:
-            Location
-              .Accuracy.High,
+    try {
+      setObtendoLocalizacao(true);
+      setMensagem('');
+
+      const permissao =
+        await Location.requestForegroundPermissionsAsync();
+
+      if (!permissao.granted) {
+        setLatitude(null);
+        setLongitude(null);
+        setMensagem(
+          'É necessário permitir o acesso à localização.'
+        );
+        return;
+      }
+
+      const localizacao =
+        await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
         });
 
-    setLatitude(
-      localizacao.coords
-        .latitude
-    );
-
-    setLongitude(
-      localizacao.coords
-        .longitude
-    );
+      setLatitude(localizacao.coords.latitude);
+      setLongitude(localizacao.coords.longitude);
+      setMensagem('');
+    } catch (error) {
+      setLatitude(null);
+      setLongitude(null);
+      setMensagem(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível obter sua localização.'
+      );
+    } finally {
+      setObtendoLocalizacao(false);
+    }
   }
 
   async function tirarFoto() {
-    if (
-      fotoUris.length >= 3
-    ) {
+    if (fotoUris.length >= 3) {
       setMensagem(
         'Você pode adicionar no máximo 3 fotos.'
       );
@@ -190,9 +137,10 @@ export default function Pracas() {
     }
 
     try {
+      setMensagem('');
+
       const permissao =
-        await ImagePicker
-          .requestCameraPermissionsAsync();
+        await ImagePicker.requestCameraPermissionsAsync();
 
       if (!permissao.granted) {
         setMensagem(
@@ -202,40 +150,27 @@ export default function Pracas() {
       }
 
       const resultado =
-        await ImagePicker
-          .launchCameraAsync({
-            mediaTypes: [
-              'images',
-            ],
-            quality: 0.7,
-          });
+        await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          quality: 0.7,
+        });
 
-      if (
-        resultado.canceled
-      ) {
+      if (resultado.canceled) {
         return;
       }
 
-      const primeiraFoto =
-        fotoUris.length === 0;
+      const primeiraFoto = fotoUris.length === 0;
 
-      setFotoUris(
-        (atual) => [
-          ...atual,
-          resultado
-            .assets[0]
-            .uri,
-        ]
-      );
+      setFotoUris((atual) => [
+        ...atual,
+        resultado.assets[0].uri,
+      ]);
 
       if (primeiraFoto) {
         setLatitude(null);
         setLongitude(null);
-
         await obterLocalizacao();
       }
-
-      setMensagem('');
     } catch (error) {
       setMensagem(
         error instanceof Error
@@ -245,28 +180,21 @@ export default function Pracas() {
     }
   }
 
-  function removerFoto(
-    indice: number
-  ) {
-    setFotoUris(
-      (atual) => {
-        const novas =
-          atual.filter(
-            (_, posicao) =>
-              posicao !==
-              indice
-          );
+  function removerFoto(indice: number) {
+    setFotoUris((atual) => {
+      const novas = atual.filter(
+        (_, posicao) => posicao !== indice
+      );
 
-        if (
-          novas.length === 0
-        ) {
-          setLatitude(null);
-          setLongitude(null);
-        }
-
-        return novas;
+      if (novas.length === 0) {
+        setLatitude(null);
+        setLongitude(null);
       }
-    );
+
+      return novas;
+    });
+
+    setMensagem('');
   }
 
   function limparCadastro() {
@@ -274,27 +202,21 @@ export default function Pracas() {
     setFotoUris([]);
     setLatitude(null);
     setLongitude(null);
+    setObtendoLocalizacao(false);
     setCadastrando(false);
   }
 
   async function cadastrar() {
-    if (
-      !usuarioId ||
-      processando
-    ) {
+    if (!usuarioId || processando) {
       return;
     }
 
     if (!nome.trim()) {
-      setMensagem(
-        'Informe o nome da praça.'
-      );
+      setMensagem('Informe o nome da praça.');
       return;
     }
 
-    if (
-      fotoUris.length < 1
-    ) {
+    if (fotoUris.length < 1) {
       setMensagem(
         'Adicione pelo menos uma foto da praça.'
       );
@@ -312,9 +234,7 @@ export default function Pracas() {
     }
 
     try {
-      setProcessando(
-        'cadastro'
-      );
+      setProcessando('cadastro');
       setMensagem('');
 
       await registrarPraca({
@@ -343,20 +263,12 @@ export default function Pracas() {
     }
   }
 
-  async function confirmar(
-    praca: Praca
-  ) {
-    if (
-      !usuarioId ||
-      processando
-    ) {
+  async function confirmar(praca: Praca) {
+    if (!usuarioId || processando) {
       return;
     }
 
-    const nota =
-      notasConfirmacao[
-        praca.id
-      ];
+    const nota = notasConfirmacao[praca.id];
 
     if (!nota) {
       setMensagem(
@@ -366,34 +278,20 @@ export default function Pracas() {
     }
 
     try {
-      setProcessando(
-        praca.id
-      );
+      setProcessando(praca.id);
       setMensagem('');
 
       const novoStatus =
-        await confirmarPraca(
-          praca.id,
-          nota
-        );
+        await confirmarPraca(praca.id, nota);
 
-      setNotasConfirmacao(
-        (atual) => {
-          const novo = {
-            ...atual,
-          };
-
-          delete novo[
-            praca.id
-          ];
-
-          return novo;
-        }
-      );
+      setNotasConfirmacao((atual) => {
+        const novo = { ...atual };
+        delete novo[praca.id];
+        return novo;
+      });
 
       setMensagem(
-        novoStatus ===
-          'APROVADA'
+        novoStatus === 'APROVADA'
           ? 'Praça confirmada e aprovada.'
           : 'Confirmação registrada.'
       );
@@ -426,20 +324,12 @@ export default function Pracas() {
     }
 
     try {
-      setProcessando(
-        pracaId
-      );
+      setProcessando(pracaId);
       setMensagem('');
 
-      await avaliarPraca(
-        pracaId,
-        nota
-      );
+      await avaliarPraca(pracaId, nota);
 
-      setMensagem(
-        'Avaliação registrada.'
-      );
-
+      setMensagem('Avaliação registrada.');
       await carregarPracas();
     } catch (error) {
       setMensagem(
@@ -454,77 +344,47 @@ export default function Pracas() {
 
   if (carregando) {
     return (
-      <View
-        style={
-          styles.centralizado
-        }
-      >
+      <View style={styles.centralizado}>
         <ActivityIndicator />
-
-        <Text
-          style={
-            styles.mensagem
-          }
-        >
+        <Text style={styles.mensagem}>
           Carregando praças...
         </Text>
       </View>
     );
   }
 
-  const pendentes =
-    pracas.filter(
-      (praca) =>
-        praca.status ===
-        'PENDENTE'
-    );
+  const pendentes = pracas.filter(
+    (praca) => praca.status === 'PENDENTE'
+  );
 
-  const aprovadas =
-    pracas.filter(
-      (praca) =>
-        praca.status ===
-        'APROVADA'
-    );
+  const aprovadas = pracas.filter(
+    (praca) => praca.status === 'APROVADA'
+  );
 
   return (
     <ScrollView
-      contentContainerStyle={
-        styles.container
-      }
+      contentContainerStyle={styles.container}
     >
-      <Text
-        style={styles.titulo}
-      >
+      <Text style={styles.titulo}>
         Praças
       </Text>
 
       {sessao ? (
         <Pressable
-          style={
-            styles
-              .botaoPrincipal
-          }
+          style={styles.botaoPrincipal}
           onPress={() => {
             if (cadastrando) {
               limparCadastro();
             } else {
-              setCadastrando(
-                true
-              );
+              setCadastrando(true);
             }
 
             setMensagem('');
           }}
-          disabled={
-            processando !==
-            null
-          }
+          disabled={processando !== null}
         >
           <Text
-            style={
-              styles
-                .textoBotaoPrincipal
-            }
+            style={styles.textoBotaoPrincipal}
           >
             {cadastrando
               ? 'Cancelar cadastro'
@@ -532,24 +392,15 @@ export default function Pracas() {
           </Text>
         </Pressable>
       ) : (
-        <Text
-          style={styles.aviso}
-        >
-          Entre na sua conta para
-          cadastrar ou avaliar
+        <Text style={styles.aviso}>
+          Entre na sua conta para cadastrar ou avaliar
           praças.
         </Text>
       )}
 
       {cadastrando ? (
-        <View
-          style={styles.bloco}
-        >
-          <Text
-            style={
-              styles.subtitulo
-            }
-          >
+        <View style={styles.bloco}>
+          <Text style={styles.subtitulo}>
             Nova praça
           </Text>
 
@@ -557,87 +408,47 @@ export default function Pracas() {
             style={styles.campo}
             placeholder="Nome da praça"
             value={nome}
-            onChangeText={
-              setNome
-            }
-            editable={
-              processando ===
-              null
-            }
+            onChangeText={setNome}
+            editable={processando === null}
           />
 
           <Text>
-            Adicione de 1 a 3
-            fotos.
+            Adicione de 1 a 3 fotos.
           </Text>
 
-          {fotoUris.length >
-          0 ? (
+          {fotoUris.length > 0 ? (
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={
-                false
-              }
-              contentContainerStyle={
-                styles.galeria
-              }
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.galeria}
             >
               {fotoUris.map(
-                (
-                  fotoUri,
-                  indice
-                ) => (
+                (fotoUri, indice) => (
                   <View
-                    key={
-                      fotoUri +
-                      indice
-                    }
-                    style={
-                      styles
-                        .cartaoFoto
-                    }
+                    key={`${fotoUri}-${indice}`}
+                    style={styles.cartaoFoto}
                   >
                     <Image
-                      source={{
-                        uri:
-                          fotoUri,
-                      }}
-                      style={
-                        styles
-                          .fotoCadastro
-                      }
+                      source={{ uri: fotoUri }}
+                      style={styles.fotoCadastro}
                     />
 
-                    <Text
-                      style={
-                        styles
-                          .numeroFoto
-                      }
-                    >
-                      Foto{' '}
-                      {indice +
-                        1}
+                    <Text style={styles.numeroFoto}>
+                      Foto {indice + 1}
                     </Text>
 
                     <Pressable
-                      style={
-                        styles
-                          .botaoRemover
-                      }
+                      style={styles.botaoRemover}
                       onPress={() =>
-                        removerFoto(
-                          indice
-                        )
+                        removerFoto(indice)
                       }
                       disabled={
-                        processando !==
-                        null
+                        processando !== null
                       }
                     >
                       <Text
                         style={
-                          styles
-                            .textoRemover
+                          styles.textoRemover
                         }
                       >
                         Remover
@@ -649,71 +460,85 @@ export default function Pracas() {
             </ScrollView>
           ) : null}
 
-          {fotoUris.length <
-          3 ? (
+          {fotoUris.length < 3 ? (
             <Pressable
-              style={
-                styles
-                  .botaoSecundario
-              }
-              onPress={
-                tirarFoto
-              }
+              style={styles.botaoSecundario}
+              onPress={tirarFoto}
               disabled={
-                processando !==
-                null
+                processando !== null ||
+                obtendoLocalizacao
               }
             >
               <Text
                 style={
-                  styles
-                    .textoBotaoSecundario
+                  styles.textoBotaoSecundario
                 }
               >
-                {fotoUris.length ===
-                0
+                {fotoUris.length === 0
                   ? 'Tirar foto'
                   : 'Adicionar outra foto'}
               </Text>
             </Pressable>
           ) : (
-            <Text
-              style={styles.aviso}
-            >
-              Limite de 3 fotos
-              atingido.
+            <Text style={styles.aviso}>
+              Limite de 3 fotos atingido.
             </Text>
           )}
 
-          {latitude !== null &&
-          longitude !== null ? (
-            <Text>
-              Localização obtida
-              automaticamente.
-            </Text>
+          {fotoUris.length > 0 ? (
+            <View
+              style={styles.statusLocalizacao}
+            >
+              {obtendoLocalizacao ? (
+                <>
+                  <ActivityIndicator />
+                  <Text>
+                    Obtendo localização...
+                  </Text>
+                </>
+              ) : latitude !== null &&
+                longitude !== null ? (
+                <Text>
+                  Localização obtida automaticamente.
+                </Text>
+              ) : (
+                <>
+                  <Text>
+                    Localização não disponível.
+                  </Text>
+
+                  <Pressable
+                    style={styles.botaoSecundario}
+                    onPress={obterLocalizacao}
+                    disabled={
+                      processando !== null
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.textoBotaoSecundario
+                      }
+                    >
+                      Tentar localização novamente
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
           ) : null}
 
           <Pressable
-            style={
-              styles
-                .botaoPrincipal
-            }
-            onPress={
-              cadastrar
-            }
+            style={styles.botaoPrincipal}
+            onPress={cadastrar}
             disabled={
-              processando !==
-              null
+              processando !== null ||
+              obtendoLocalizacao
             }
           >
             <Text
-              style={
-                styles
-                  .textoBotaoPrincipal
-              }
+              style={styles.textoBotaoPrincipal}
             >
-              {processando ===
-              'cadastro'
+              {processando === 'cadastro'
                 ? 'Cadastrando...'
                 : 'Registrar praça'}
             </Text>
@@ -721,261 +546,163 @@ export default function Pracas() {
         </View>
       ) : null}
 
-      {sessao &&
-      pendentes.length > 0 ? (
+      {sessao && pendentes.length > 0 ? (
         <>
-          <Text
-            style={
-              styles.subtitulo
-            }
-          >
+          <Text style={styles.subtitulo}>
             Aguardando confirmação
           </Text>
 
-          {pendentes.map(
-            (praca) => {
-              const ehAutor =
-                usuarioId ===
-                praca.usuario_id;
+          {pendentes.map((praca) => {
+            const ehAutor =
+              usuarioId === praca.usuario_id;
 
-              const nota =
-                notasConfirmacao[
-                  praca.id
-                ] ?? 0;
-
-              return (
-                <View
-                  key={praca.id}
-                  style={
-                    styles.bloco
-                  }
-                >
-                  <Galeria
-                    praca={praca}
-                  />
-
-                  <Text
-                    style={
-                      styles
-                        .subtitulo
-                    }
-                  >
-                    {praca.nome}
-                  </Text>
-
-                  <LocalPraca
-                    praca={praca}
-                  />
-
-                  <Text>
-                    Confirmações:{' '}
-                    {
-                      praca
-                        .confirmacoes
-                    }
-                    /2
-                  </Text>
-
-                  {ehAutor ? (
-                    <Text
-                      style={
-                        styles.aviso
-                      }
-                    >
-                      Você cadastrou
-                      esta praça. Outros
-                      usuários precisam
-                      confirmar a
-                      existência dela.
-                    </Text>
-                  ) : praca
-                      .usuarioConfirmou ? (
-                    <Text
-                      style={
-                        styles.aviso
-                      }
-                    >
-                      Você já confirmou
-                      esta praça.
-                    </Text>
-                  ) : (
-                    <>
-                      <Text>
-                        Esta praça
-                        realmente existe
-                        neste local?
-                        Avalie para
-                        confirmar:
-                      </Text>
-
-                      <Estrelas
-                        valor={nota}
-                        onPress={(
-                          valor
-                        ) =>
-                          setNotasConfirmacao(
-                            (
-                              atual
-                            ) => ({
-                              ...atual,
-
-                              [
-                                praca.id
-                              ]:
-                                valor,
-                            })
-                          )
-                        }
-                        disabled={
-                          processando !==
-                          null
-                        }
-                      />
-
-                      <Pressable
-                        style={
-                          styles
-                            .botaoPrincipal
-                        }
-                        onPress={() =>
-                          confirmar(
-                            praca
-                          )
-                        }
-                        disabled={
-                          processando !==
-                          null
-                        }
-                      >
-                        <Text
-                          style={
-                            styles
-                              .textoBotaoPrincipal
-                          }
-                        >
-                          {processando ===
-                          praca.id
-                            ? 'Confirmando...'
-                            : 'Confirmar praça'}
-                        </Text>
-                      </Pressable>
-                    </>
-                  )}
-                </View>
-              );
-            }
-          )}
-        </>
-      ) : null}
-
-      <Text
-        style={styles.subtitulo}
-      >
-        Praças aprovadas
-      </Text>
-
-      {aprovadas.length ===
-      0 ? (
-        <Text
-          style={styles.aviso}
-        >
-          Nenhuma praça aprovada
-          ainda.
-        </Text>
-      ) : (
-        aprovadas.map(
-          (praca) => {
-            const bonus =
-              textoBonus(
-                praca
-              );
+            const nota =
+              notasConfirmacao[praca.id] ?? 0;
 
             return (
               <View
                 key={praca.id}
-                style={
-                  styles.bloco
-                }
+                style={styles.bloco}
               >
-                <Galeria
-                  praca={praca}
-                />
+                <Galeria praca={praca} />
 
-                <Text
-                  style={
-                    styles
-                      .subtitulo
-                  }
-                >
+                <Text style={styles.subtitulo}>
                   {praca.nome}
                 </Text>
 
-                <LocalPraca
-                  praca={praca}
-                />
+                <LocalPraca praca={praca} />
 
-                <Text
-                  style={
-                    styles.media
-                  }
-                >
-                  {praca.media ===
-                  null
-                    ? 'Sem avaliações'
-                    : `★ ${praca.media.toFixed(
-                        1
-                      )} (${praca.totalAvaliacoes})`}
+                <Text>
+                  Confirmações: {praca.confirmacoes}/2
                 </Text>
 
-                {bonus ? (
-                  <Text
-                    style={
-                      styles.bonus
-                    }
-                  >
-                    {bonus}
+                {ehAutor ? (
+                  <Text style={styles.aviso}>
+                    Você cadastrou esta praça. Outros
+                    usuários precisam confirmar a
+                    existência dela.
                   </Text>
-                ) : null}
-
-                {sessao ? (
+                ) : praca.usuarioConfirmou ? (
+                  <Text style={styles.aviso}>
+                    Você já confirmou esta praça.
+                  </Text>
+                ) : (
                   <>
                     <Text>
-                      Sua avaliação:
+                      Esta praça realmente existe neste
+                      local? Avalie para confirmar:
                     </Text>
 
                     <Estrelas
-                      valor={
-                        praca
-                          .avaliacaoUsuario ??
-                        0
-                      }
-                      onPress={(
-                        valor
-                      ) =>
-                        avaliar(
-                          praca.id,
-                          valor
+                      valor={nota}
+                      onPress={(valor) =>
+                        setNotasConfirmacao(
+                          (atual) => ({
+                            ...atual,
+                            [praca.id]: valor,
+                          })
                         )
                       }
                       disabled={
-                        processando !==
-                        null
+                        processando !== null
                       }
                     />
+
+                    <Pressable
+                      style={styles.botaoPrincipal}
+                      onPress={() =>
+                        confirmar(praca)
+                      }
+                      disabled={
+                        processando !== null
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.textoBotaoPrincipal
+                        }
+                      >
+                        {processando === praca.id
+                          ? 'Confirmando...'
+                          : 'Confirmar praça'}
+                      </Text>
+                    </Pressable>
                   </>
-                ) : null}
+                )}
               </View>
             );
-          }
-        )
+          })}
+        </>
+      ) : null}
+
+      <Text style={styles.subtitulo}>
+        Praças aprovadas
+      </Text>
+
+      {aprovadas.length === 0 ? (
+        <Text style={styles.aviso}>
+          Nenhuma praça aprovada ainda.
+        </Text>
+      ) : (
+        aprovadas.map((praca) => {
+          const bonus = textoBonus(praca);
+
+          return (
+            <View
+              key={praca.id}
+              style={styles.bloco}
+            >
+              <Galeria praca={praca} />
+
+              <Text style={styles.subtitulo}>
+                {praca.nome}
+              </Text>
+
+              <LocalPraca praca={praca} />
+
+              <Text style={styles.media}>
+                {praca.media === null
+                  ? 'Sem avaliações'
+                  : `★ ${praca.media.toFixed(
+                      1
+                    )} (${praca.totalAvaliacoes})`}
+              </Text>
+
+              {bonus ? (
+                <Text style={styles.bonus}>
+                  {bonus}
+                </Text>
+              ) : null}
+
+              {sessao ? (
+                <>
+                  <Text>
+                    Sua avaliação:
+                  </Text>
+
+                  <Estrelas
+                    valor={
+                      praca.avaliacaoUsuario ?? 0
+                    }
+                    onPress={(valor) =>
+                      avaliar(
+                        praca.id,
+                        valor
+                      )
+                    }
+                    disabled={
+                      processando !== null
+                    }
+                  />
+                </>
+              ) : null}
+            </View>
+          );
+        })
       )}
 
       {mensagem ? (
-        <Text
-          style={
-            styles.mensagem
-          }
-        >
+        <Text style={styles.mensagem}>
           {mensagem}
         </Text>
       ) : null}
@@ -988,56 +715,33 @@ function Galeria({
 }: {
   praca: Praca;
 }) {
-  if (
-    praca.fotos.length === 0
-  ) {
+  if (praca.fotos.length === 0) {
     return null;
   }
 
   return (
     <ScrollView
       horizontal
-      showsHorizontalScrollIndicator={
-        false
-      }
-      contentContainerStyle={
-        styles.galeria
-      }
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.galeria}
     >
-      {praca.fotos.map(
-        (foto, indice) => (
-          <View
-            key={foto.id}
-            style={
-              styles.cartaoFoto
-            }
-          >
-            <Image
-              source={{
-                uri:
-                  foto.foto_url,
-              }}
-              style={styles.foto}
-            />
+      {praca.fotos.map((foto, indice) => (
+        <View
+          key={foto.id}
+          style={styles.cartaoFoto}
+        >
+          <Image
+            source={{ uri: foto.foto_url }}
+            style={styles.foto}
+          />
 
-            {praca.fotos.length >
-            1 ? (
-              <Text
-                style={
-                  styles
-                    .numeroFoto
-                }
-              >
-                {indice + 1}/
-                {
-                  praca.fotos
-                    .length
-                }
-              </Text>
-            ) : null}
-          </View>
-        )
-      )}
+          {praca.fotos.length > 1 ? (
+            <Text style={styles.numeroFoto}>
+              {indice + 1}/{praca.fotos.length}
+            </Text>
+          ) : null}
+        </View>
+      ))}
     </ScrollView>
   );
 }
@@ -1066,37 +770,19 @@ function Estrelas({
   disabled,
 }: {
   valor: number;
-  onPress: (
-    nota: number
-  ) => void;
+  onPress: (nota: number) => void;
   disabled: boolean;
 }) {
   return (
-    <View
-      style={styles.estrelas}
-    >
-      {[
-        1,
-        2,
-        3,
-        4,
-        5,
-      ].map((nota) => (
+    <View style={styles.estrelas}>
+      {[1, 2, 3, 4, 5].map((nota) => (
         <Pressable
           key={nota}
-          onPress={() =>
-            onPress(nota)
-          }
+          onPress={() => onPress(nota)}
           disabled={disabled}
         >
-          <Text
-            style={
-              styles.estrela
-            }
-          >
-            {nota <= valor
-              ? '★'
-              : '☆'}
+          <Text style={styles.estrela}>
+            {nota <= valor ? '★' : '☆'}
           </Text>
         </Pressable>
       ))}
@@ -1104,140 +790,140 @@ function Estrelas({
   );
 }
 
-const styles =
-  StyleSheet.create({
-    container: {
-      padding: 20,
-      gap: 16,
-    },
+const styles = StyleSheet.create({
+  container: {
+    padding: 20,
+    gap: 16,
+  },
 
-    centralizado: {
-      flex: 1,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      padding: 24,
-    },
+  centralizado: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
 
-    titulo: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      textAlign: 'center',
-    },
+  titulo: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
 
-    subtitulo: {
-      fontSize: 18,
-      fontWeight: 'bold',
-    },
+  subtitulo: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
 
-    bloco: {
-      borderWidth: 1,
-      borderColor:
-        '#dddddd',
-      borderRadius: 10,
-      padding: 14,
-      gap: 8,
-    },
+  bloco: {
+    borderWidth: 1,
+    borderColor: '#dddddd',
+    borderRadius: 10,
+    padding: 14,
+    gap: 8,
+  },
 
-    campo: {
-      borderWidth: 1,
-      borderColor:
-        '#cccccc',
-      borderRadius: 8,
-      padding: 12,
-    },
+  campo: {
+    borderWidth: 1,
+    borderColor: '#cccccc',
+    borderRadius: 8,
+    padding: 12,
+  },
 
-    galeria: {
-      gap: 10,
-    },
+  galeria: {
+    gap: 10,
+  },
 
-    cartaoFoto: {
-      width: 240,
-    },
+  cartaoFoto: {
+    width: 240,
+  },
 
-    foto: {
-      width: 240,
-      height: 180,
-      borderRadius: 8,
-    },
+  foto: {
+    width: 240,
+    height: 180,
+    borderRadius: 8,
+  },
 
-    fotoCadastro: {
-      width: 240,
-      height: 180,
-      borderRadius: 8,
-    },
+  fotoCadastro: {
+    width: 240,
+    height: 180,
+    borderRadius: 8,
+  },
 
-    numeroFoto: {
-      textAlign: 'center',
-      marginTop: 4,
-      fontWeight: '600',
-    },
+  numeroFoto: {
+    textAlign: 'center',
+    marginTop: 4,
+    fontWeight: '600',
+  },
 
-    botaoPrincipal: {
-      backgroundColor:
-        '#222222',
-      borderRadius: 8,
-      padding: 14,
-    },
+  statusLocalizacao: {
+    gap: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#dddddd',
+    borderRadius: 8,
+  },
 
-    textoBotaoPrincipal: {
-      color: '#ffffff',
-      fontWeight: 'bold',
-      textAlign: 'center',
-    },
+  botaoPrincipal: {
+    backgroundColor: '#222222',
+    borderRadius: 8,
+    padding: 14,
+  },
 
-    botaoSecundario: {
-      borderWidth: 1,
-      borderColor:
-        '#222222',
-      borderRadius: 8,
-      padding: 12,
-    },
+  textoBotaoPrincipal: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
 
-    textoBotaoSecundario: {
-      fontWeight: 'bold',
-      textAlign: 'center',
-    },
+  botaoSecundario: {
+    borderWidth: 1,
+    borderColor: '#222222',
+    borderRadius: 8,
+    padding: 12,
+  },
 
-    botaoRemover: {
-      borderWidth: 1,
-      borderColor:
-        '#b00020',
-      borderRadius: 8,
-      padding: 8,
-      marginTop: 6,
-    },
+  textoBotaoSecundario: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
 
-    textoRemover: {
-      color: '#b00020',
-      fontWeight: 'bold',
-      textAlign: 'center',
-    },
+  botaoRemover: {
+    borderWidth: 1,
+    borderColor: '#b00020',
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 6,
+  },
 
-    media: {
-      fontSize: 17,
-      fontWeight: 'bold',
-    },
+  textoRemover: {
+    color: '#b00020',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
 
-    bonus: {
-      fontWeight: '600',
-    },
+  media: {
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
 
-    estrelas: {
-      flexDirection: 'row',
-      gap: 8,
-    },
+  bonus: {
+    fontWeight: '600',
+  },
 
-    estrela: {
-      fontSize: 32,
-    },
+  estrelas: {
+    flexDirection: 'row',
+    gap: 8,
+  },
 
-    aviso: {
-      textAlign: 'center',
-    },
+  estrela: {
+    fontSize: 32,
+  },
 
-    mensagem: {
-      textAlign: 'center',
-    },
-  });
+  aviso: {
+    textAlign: 'center',
+  },
+
+  mensagem: {
+    textAlign: 'center',
+  },
+});
