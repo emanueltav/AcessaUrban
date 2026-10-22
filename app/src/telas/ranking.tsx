@@ -1,4 +1,7 @@
-import { useCallback, useState } from 'react';
+import {
+  useCallback,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,6 +11,8 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
+import { useAutenticacao } from '../contextos/autenticacao';
+import { buscarPerfil } from '../servicos/perfil';
 import { supabase } from '../servicos/supabase';
 
 type Bairro = {
@@ -19,9 +24,25 @@ type Bairro = {
 };
 
 export default function Ranking() {
-  const [bairros, setBairros] = useState<Bairro[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState('');
+  const { sessao } =
+    useAutenticacao();
+
+  const [bairros, setBairros] =
+    useState<Bairro[]>([]);
+
+  const [
+    bairroUsuarioId,
+    setBairroUsuarioId,
+  ] = useState<string | null>(null);
+
+  const [carregando, setCarregando] =
+    useState(true);
+
+  const [erro, setErro] =
+    useState('');
+
+  const usuarioId =
+    sessao?.user.id ?? null;
 
   useFocusEffect(
     useCallback(() => {
@@ -32,53 +53,86 @@ export default function Ranking() {
           setCarregando(true);
           setErro('');
 
-          const { data, error } = await supabase
-            .from('bairros')
-            .select(
-              'id, nome, municipio, uf, nota_atual'
-            )
-            .order('nota_atual', {
-              ascending: false,
-            })
-            .order('municipio', {
-              ascending: true,
-            })
-            .order('nome', {
-              ascending: true,
-            });
+          const { data, error } =
+            await supabase
+              .from('bairros')
+              .select(
+                'id, nome, municipio, uf, nota_atual'
+              )
+              .order('nota_atual', {
+                ascending: false,
+              })
+              .order('municipio', {
+                ascending: true,
+              })
+              .order('nome', {
+                ascending: true,
+              });
 
           if (!ativo) {
             return;
           }
 
           if (error) {
-            console.error(
-              'Erro ao carregar ranking:',
-              error
-            );
-
-            setErro(
-              'Não foi possível carregar o ranking.'
-            );
-
-            return;
+            throw error;
           }
 
-          const bairrosFormatados: Bairro[] = (
-            data ?? []
-          ).map((bairro) => ({
-            id: String(bairro.id),
-            nome: String(bairro.nome),
-            municipio: String(bairro.municipio),
-            uf: String(bairro.uf),
-            nota_atual: Number(bairro.nota_atual),
-          }));
+          const bairrosFormatados:
+            Bairro[] = (
+              data ?? []
+            ).map((bairro) => ({
+              id: String(bairro.id),
+              nome: String(
+                bairro.nome
+              ),
+              municipio: String(
+                bairro.municipio
+              ),
+              uf: String(bairro.uf),
 
-          setBairros(bairrosFormatados);
+              nota_atual: Number(
+                bairro.nota_atual
+              ),
+            }));
+
+          setBairros(
+            bairrosFormatados
+          );
+
+          if (usuarioId) {
+            try {
+              const perfil =
+                await buscarPerfil(
+                  usuarioId
+                );
+
+              if (ativo) {
+                setBairroUsuarioId(
+                  perfil.bairro_id
+                );
+              }
+            } catch (errorPerfil) {
+              console.error(
+                'Erro ao carregar bairro do perfil:',
+                errorPerfil
+              );
+
+              if (ativo) {
+                setBairroUsuarioId(
+                  null
+                );
+              }
+            }
+          } else {
+            setBairroUsuarioId(
+              null
+            );
+          }
         } catch (error) {
-          if (error instanceof Error) {
-            console.error(error.message);
-          }
+          console.error(
+            'Erro ao carregar ranking:',
+            error
+          );
 
           if (ativo) {
             setErro(
@@ -97,22 +151,31 @@ export default function Ranking() {
       return () => {
         ativo = false;
       };
-    }, [])
+    }, [usuarioId])
   );
 
-  function obterPosicao(index: number) {
+  function obterPosicao(
+    index: number
+  ) {
     if (index === 0) {
       return 1;
     }
 
-    const bairroAtual = bairros[index];
-    const bairroAnterior = bairros[index - 1];
+    const bairroAtual =
+      bairros[index];
+
+    const bairroAnterior =
+      bairros[index - 1];
 
     if (
       bairroAtual.nota_atual ===
       bairroAnterior.nota_atual
     ) {
-      for (let i = index - 1; i >= 0; i -= 1) {
+      for (
+        let i = index - 1;
+        i >= 0;
+        i -= 1
+      ) {
         if (
           bairros[i].nota_atual !==
           bairroAtual.nota_atual
@@ -166,31 +229,86 @@ export default function Ranking() {
       ) : (
         <FlatList
           data={bairros}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.lista}
-          renderItem={({ item, index }) => (
-            <View style={styles.item}>
-              <View style={styles.posicao}>
-                <Text style={styles.textoPosicao}>
-                  {obterPosicao(index)}º
+          keyExtractor={(item) =>
+            item.id
+          }
+          contentContainerStyle={
+            styles.lista
+          }
+          renderItem={({
+            item,
+            index,
+          }) => {
+            const meuBairro =
+              item.id ===
+              bairroUsuarioId;
+
+            return (
+              <View
+                style={[
+                  styles.item,
+
+                  meuBairro &&
+                    styles.itemMeuBairro,
+                ]}
+              >
+                <View
+                  style={styles.posicao}
+                >
+                  <Text
+                    style={
+                      styles.textoPosicao
+                    }
+                  >
+                    {obterPosicao(index)}
+                    º
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.informacoes
+                  }
+                >
+                  <Text
+                    style={styles.nome}
+                  >
+                    {meuBairro
+                      ? '🏠 '
+                      : ''}
+
+                    {item.nome}
+                  </Text>
+
+                  <Text
+                    style={styles.local}
+                  >
+                    {item.municipio}/
+                    {item.uf}
+                  </Text>
+
+                  {meuBairro ? (
+                    <Text
+                      style={
+                        styles
+                          .textoMeuBairro
+                      }
+                    >
+                      Meu bairro
+                    </Text>
+                  ) : null}
+                </View>
+
+                <Text
+                  style={styles.nota}
+                >
+                  {item.nota_atual.toFixed(
+                    1
+                  )}
                 </Text>
               </View>
-
-              <View style={styles.informacoes}>
-                <Text style={styles.nome}>
-                  {item.nome}
-                </Text>
-
-                <Text style={styles.local}>
-                  {item.municipio}/{item.uf}
-                </Text>
-              </View>
-
-              <Text style={styles.nota}>
-                {item.nota_atual.toFixed(1)}
-              </Text>
-            </View>
-          )}
+            );
+          }}
         />
       )}
     </View>
@@ -231,6 +349,11 @@ const styles = StyleSheet.create({
     padding: 12,
   },
 
+  itemMeuBairro: {
+    borderColor: '#222222',
+    backgroundColor: '#f3f3f3',
+  },
+
   posicao: {
     width: 45,
   },
@@ -251,6 +374,12 @@ const styles = StyleSheet.create({
 
   local: {
     marginTop: 2,
+  },
+
+  textoMeuBairro: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   nota: {
