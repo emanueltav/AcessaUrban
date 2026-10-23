@@ -1,41 +1,35 @@
-This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
+# AcessaUrban — notas para manutenção
 
-## Expo has changed — do not trust your training data
+## Projeto real
 
-Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
+- **Expo SDK 57**, React Native, TypeScript estrito.
+- **React Navigation**, não Expo Router. Manter `src/navegacao/rotas.tsx` e as telas em `src/telas`.
+- **MapLibre React Native** para o mapa nativo; `mapa.tsx` é fallback web.
+- Supabase Auth, Postgres/PostGIS, RPC e Storage. Não duplicar a lógica de pontuação no cliente.
 
-1. Read the major version of the `expo` package in `package.json`.
-2. Fetch the matching versioned docs: `https://docs.expo.dev/versions/v<major>.0.0/`
-3. For anything else, fetch https://docs.expo.dev/llms.txt — an index of all Expo docs with corrections to common LLM misconceptions. Follow its links to the specific page you need; never answer from memory.
+## Antes de mudanças
 
-## Commands
+1. Ler o arquivo atual e seus imports/consumidores.
+2. Preservar assinatura das funções exportadas e as RPCs existentes.
+3. Para Expo/React Native, confirmar a API na documentação **versionada para SDK 57**.
+4. Rodar `npx tsc --noEmit` dentro de `app` e testar os fluxos críticos no Android.
+5. Fazer mudanças em lotes pequenos e só commitar após aprovação explícita.
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+## Comandos principais
 
 ```bash
-npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npx expo start              # start the dev server
-npx expo lint               # lint
-npx tsc --noEmit            # typecheck
-npx expo-doctor             # diagnose dependency and config issues
-npx expo install --fix      # fix incompatible package versions
+cd app
+npx tsc --noEmit
+npx expo-doctor
+npx expo start --dev-client
 ```
 
-Run lint and typecheck before declaring any task done.
+Se precisar instalar módulo Expo, usar `npx expo install <pacote>` para compatibilidade. Nunca executar `npm audit fix --force`.
 
-## Navigation & Routing
+## Restrições
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
-
-## Building with EAS
-
-Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
-Docs: https://docs.expo.dev/eas/index.md
-
-## Rules
-
-- If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
-- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
-- Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+- Não editar ou reescrever migrations já aplicadas, criar migration nova se necessário.
+- Preservar as regras de validação, histórico, bloqueio de voto do autor e bônus das praças.
+- Evitar criar arquivos novos quando uma pequena função/componente local basta.
+- Nunca commitar o `.env`, tokens ou chaves administrativas.
+- Não criar mudanças estéticas grandes durante correção funcional.

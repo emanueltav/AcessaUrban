@@ -1,35 +1,17 @@
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
-import {
-  listarOcorrenciasMapa,
-  OcorrenciaMapa,
-} from '../servicos/mapa';
+import { listarOcorrenciasMapa, OcorrenciaMapa } from '../servicos/mapa';
 
-function tituloStatus(
-  status: OcorrenciaMapa['status']
-) {
-  switch (status) {
-    case 'PENDENTE_VALIDACAO':
-      return 'Aguardando validação';
-    case 'ATIVA':
-      return 'Ativa';
-    case 'RESOLVIDA':
-      return 'Resolvida recentemente';
-  }
-}
+const TITULOS: Record<OcorrenciaMapa['status'], string> = {
+  PENDENTE_VALIDACAO: 'Aguardando validação',
+  ATIVA: 'Ativa',
+  RESOLVIDA: 'Resolvida recentemente',
+};
 
 export default function Mapa() {
-  const [ocorrencias, setOcorrencias] = useState<
-    OcorrenciaMapa[]
-  >([]);
+  const [ocorrencias, setOcorrencias] = useState<OcorrenciaMapa[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -41,58 +23,27 @@ export default function Mapa() {
         try {
           setCarregando(true);
           setErro('');
-
           const dados = await listarOcorrenciasMapa();
-
-          if (ativo) {
-            setOcorrencias(dados);
-          }
+          if (ativo) setOcorrencias(dados);
         } catch (error) {
-          if (error instanceof Error) {
-            console.error(error.message);
-          }
-
-          if (ativo) {
-            setErro(
-              'Não foi possível carregar as ocorrências.'
-            );
-          }
+          console.error('Erro ao carregar mapa web:', error);
+          if (ativo) setErro('Não foi possível carregar as ocorrências.');
         } finally {
-          if (ativo) {
-            setCarregando(false);
-          }
+          if (ativo) setCarregando(false);
         }
       }
 
       carregarOcorrencias();
-
-      return () => {
-        ativo = false;
-      };
+      return () => { ativo = false; };
     }, [])
   );
 
-  if (carregando) {
+  if (carregando || erro) {
     return (
       <View style={styles.centralizado}>
-        <ActivityIndicator />
-
+        {carregando ? <ActivityIndicator /> : <Text style={styles.titulo}>Mapa de Ocorrências</Text>}
         <Text style={styles.mensagem}>
-          Carregando ocorrências...
-        </Text>
-      </View>
-    );
-  }
-
-  if (erro) {
-    return (
-      <View style={styles.centralizado}>
-        <Text style={styles.titulo}>
-          Mapa de Ocorrências
-        </Text>
-
-        <Text style={styles.mensagem}>
-          {erro}
+          {erro || 'Carregando ocorrências...'}
         </Text>
       </View>
     );
@@ -100,10 +51,7 @@ export default function Mapa() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.titulo}>
-        Mapa de Ocorrências
-      </Text>
-
+      <Text style={styles.titulo}>Mapa de Ocorrências</Text>
       <Text style={styles.aviso}>
         O mapa interativo será exibido no aplicativo móvel.
         No navegador, as ocorrências atuais e as resolvidas
@@ -111,9 +59,7 @@ export default function Mapa() {
       </Text>
 
       {ocorrencias.length === 0 ? (
-        <Text style={styles.mensagem}>
-          Nenhuma ocorrência disponível.
-        </Text>
+        <Text style={styles.mensagem}>Nenhuma ocorrência disponível.</Text>
       ) : (
         <FlatList
           data={ocorrencias}
@@ -121,29 +67,14 @@ export default function Mapa() {
           contentContainerStyle={styles.lista}
           renderItem={({ item }) => (
             <View style={styles.item}>
-              <Text style={styles.nome}>
-                {item.categoria}
-              </Text>
-
-              <Text>
-                Gravidade: {item.gravidade}
-              </Text>
-
-              <Text>
-                Status: {tituloStatus(item.status)}
-              </Text>
-
+              <Text style={styles.nome}>{item.categoria}</Text>
+              <Text>Gravidade: {item.gravidade}</Text>
+              <Text>Status: {TITULOS[item.status]}</Text>
               {item.bairro ? (
-                <Text>
-                  {item.bairro.nome} —{' '}
-                  {item.bairro.municipio}/{item.bairro.uf}
-                </Text>
+                <Text>{item.bairro.nome} — {item.bairro.municipio}/{item.bairro.uf}</Text>
               ) : null}
-
               {item.descricao ? (
-                <Text style={styles.descricao}>
-                  {item.descricao}
-                </Text>
+                <Text style={styles.descricao}>{item.descricao}</Text>
               ) : null}
             </View>
           )}
@@ -154,54 +85,19 @@ export default function Mapa() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-  },
-
+  container: { flex: 1, padding: 24 },
   centralizado: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
+    flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24,
   },
-
   titulo: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 16,
+    fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 16,
   },
-
-  aviso: {
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-
-  lista: {
-    gap: 8,
-    paddingBottom: 24,
-  },
-
+  aviso: { textAlign: 'center', marginBottom: 20 },
+  lista: { gap: 8, paddingBottom: 24 },
   item: {
-    borderWidth: 1,
-    borderColor: '#dddddd',
-    borderRadius: 8,
-    padding: 12,
+    borderWidth: 1, borderColor: '#dddddd', borderRadius: 8, padding: 12,
   },
-
-  nome: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-
-  descricao: {
-    marginTop: 6,
-  },
-
-  mensagem: {
-    textAlign: 'center',
-    marginTop: 12,
-  },
+  nome: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  descricao: { marginTop: 6 },
+  mensagem: { textAlign: 'center', marginTop: 12 },
 });

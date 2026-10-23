@@ -1,1712 +1,431 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import {
-  NavigationProp,
-  useFocusEffect,
-  useNavigation,
-  useRoute,
-} from '@react-navigation/native';
-
+import { NavigationProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useAutenticacao } from '../contextos/autenticacao';
 import type { RootStackParamList } from '../navegacao/rotas';
+import { buscarResumoOcorrencias, diasDesde, OcorrenciaResumoGeral, ResumoOcorrenciasGeral } from '../servicos/ocorrencias';
 import {
-  buscarResumoOcorrencias,
-  diasDesde,
-  OcorrenciaResumoGeral,
-  ResumoOcorrenciasGeral,
-} from '../servicos/ocorrencias';
-import {
-  buscarHistoricoOcorrencia,
-  buscarOcorrencia,
-  buscarResumoValidacoes,
-  confirmarProblema,
-  EventoValidacao,
-  OcorrenciaDetalhe,
-  ResumoValidacoes,
-  votarResolucao,
-  VotoResolucao,
+  buscarHistoricoOcorrencia, buscarOcorrencia, buscarResumoValidacoes, confirmarProblema,
+  EventoValidacao, FotoOcorrencia, OcorrenciaDetalhe, ResumoValidacoes, votarResolucao, VotoResolucao,
 } from '../servicos/votacoes';
 
-const resumoInicial: ResumoValidacoes = {
-  confirmacoes: 0,
-  resolvidos: 0,
-  aindaExiste: 0,
-  usuarioConfirmou: false,
-  votoResolucaoUsuario: null,
+const RESUMO_INICIAL: ResumoValidacoes = {
+  confirmacoes: 0, resolvidos: 0, aindaExiste: 0,
+  usuarioConfirmou: false, votoResolucaoUsuario: null,
 };
 
-function tituloCategoria(
-  categoria: OcorrenciaDetalhe['categoria']
-) {
-  switch (categoria) {
-    case 'PAVIMENTACAO':
-      return 'Pavimentação';
-    case 'ILUMINACAO':
-      return 'Iluminação';
-    case 'ESGOTO':
-      return 'Esgoto';
-    case 'CALCAMENTO':
-      return 'Calçamento';
-  }
+const GERAL_INICIAL: ResumoOcorrenciasGeral = {
+  ativas: 0, resolvidasMes: 0, tempoMedioResolucaoDias: null,
+  ocorrenciasAtivas: [], ocorrenciasAnteriores: [],
+};
+
+const CATEGORIAS: Record<string, string> = {
+  PAVIMENTACAO: 'Pavimentação', ILUMINACAO: 'Iluminação',
+  ESGOTO: 'Esgoto', CALCAMENTO: 'Calçamento',
+};
+const GRAVIDADES: Record<string, string> = { LEVE: 'Leve', MODERADO: 'Moderado', GRAVE: 'Grave' };
+const STATUS: Record<string, string> = {
+  PENDENTE_VALIDACAO: 'Aguardando validação', ATIVA: 'Ativa', RESOLVIDA: 'Resolvida',
+};
+
+const ERROS_VOTO: [string, string][] = [
+  ['O autor nao pode validar a propria ocorrencia', 'Você não pode votar na ocorrência que registrou.'],
+  ['A ocorrencia nao esta aguardando confirmacao', 'Esta ocorrência não está mais aguardando confirmação.'],
+  ['A ocorrencia nao esta ativa', 'Esta ocorrência não está mais disponível para votação.'],
+  ['Erro ao enviar foto', 'Não foi possível enviar uma das fotos.'],
+  ['duplicate key', 'Você já confirmou esta ocorrência.'],
+  ['unique constraint', 'Você já confirmou esta ocorrência.'],
+];
+
+const formatarData = (data: string) => new Date(data).toLocaleDateString('pt-BR');
+const tituloVoto = (voto: VotoResolucao) => voto === 'RESOLVIDO' ? 'Resolvido' : 'Ainda existe';
+
+function mensagemErroVoto(erro: unknown) {
+  const mensagem = erro instanceof Error ? erro.message : '';
+  return ERROS_VOTO.find(([trecho]) => mensagem.includes(trecho))?.[1]
+    ?? 'Não foi possível registrar seu voto.';
 }
 
-function tituloGravidade(
-  gravidade: OcorrenciaDetalhe['gravidade']
-) {
-  switch (gravidade) {
-    case 'LEVE':
-      return 'Leve';
-    case 'MODERADO':
-      return 'Moderado';
-    case 'GRAVE':
-      return 'Grave';
-  }
-}
+type FotoExibicao = Pick<FotoOcorrencia, 'id' | 'foto_url'>;
 
-function tituloStatus(
-  status: OcorrenciaDetalhe['status']
-) {
-  switch (status) {
-    case 'PENDENTE_VALIDACAO':
-      return 'Aguardando validação';
-    case 'ATIVA':
-      return 'Ativa';
-    case 'RESOLVIDA':
-      return 'Resolvida';
-  }
-}
-
-function tituloVoto(voto: VotoResolucao) {
-  return voto === 'RESOLVIDO'
-    ? 'Resolvido'
-    : 'Ainda existe';
-}
-
-function formatarData(data: string) {
-  return new Date(data).toLocaleDateString('pt-BR');
-}
-
-function mensagemErroVoto(error: unknown) {
-  const mensagem =
-    error instanceof Error
-      ? error.message
-      : '';
-
-  if (
-    mensagem.includes(
-      'O autor nao pode validar a propria ocorrencia'
-    )
-  ) {
-    return 'Você não pode votar na ocorrência que registrou.';
-  }
-
-  if (
-    mensagem.includes(
-      'A ocorrencia nao esta aguardando confirmacao'
-    )
-  ) {
-    return 'Esta ocorrência não está mais aguardando confirmação.';
-  }
-
-  if (
-    mensagem.includes(
-      'A ocorrencia nao esta ativa'
-    )
-  ) {
-    return 'Esta ocorrência não está mais disponível para votação.';
-  }
-
-  if (
-    mensagem.includes(
-      'Erro ao enviar foto'
-    )
-  ) {
-    return 'Não foi possível enviar uma das fotos.';
-  }
-
-  if (
-    mensagem.includes('duplicate key') ||
-    mensagem.includes('unique constraint')
-  ) {
-    return 'Você já confirmou esta ocorrência.';
-  }
-
-  return 'Não foi possível registrar seu voto.';
-}
-
-function DetalheOcorrencia({
-  ocorrenciaId,
-}: {
-  ocorrenciaId: string;
+function GaleriaFotos({ fotos, estilo, numeracao = false }: {
+  fotos: FotoExibicao[]; estilo: 'original' | 'destaque' | 'historico'; numeracao?: boolean;
 }) {
+  const estiloFoto = estilo === 'original' ? styles.foto
+    : estilo === 'destaque' ? styles.fotoEvidenciaDestaque : styles.fotoHistorico;
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galeria}>
+    {fotos.map((foto, indice) => <View key={foto.id}>
+      <Image source={{ uri: foto.foto_url }} style={estiloFoto} />
+      {numeracao && fotos.length > 1 &&
+        <Text style={styles.numeroFoto}>{indice + 1}/{fotos.length}</Text>}
+    </View>)}
+  </ScrollView>;
+}
+
+function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
   const { sessao } = useAutenticacao();
-
-  const [ocorrencia, setOcorrencia] =
-    useState<OcorrenciaDetalhe | null>(null);
-  const [resumo, setResumo] =
-    useState<ResumoValidacoes>(resumoInicial);
-  const [historico, setHistorico] =
-    useState<EventoValidacao[]>([]);
-  const [historicoAberto, setHistoricoAberto] =
-    useState(false);
-  const [votoPreparando, setVotoPreparando] =
-    useState<VotoResolucao | null>(null);
-  const [fotosVoto, setFotosVoto] =
-    useState<string[]>([]);
-  const [carregando, setCarregando] =
-    useState(true);
-  const [enviandoVoto, setEnviandoVoto] =
-    useState(false);
+  const usuarioId = sessao?.user.id ?? null;
+  const [ocorrencia, setOcorrencia] = useState<OcorrenciaDetalhe | null>(null);
+  const [resumo, setResumo] = useState<ResumoValidacoes>(RESUMO_INICIAL);
+  const [historico, setHistorico] = useState<EventoValidacao[]>([]);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
+  const [votoPreparando, setVotoPreparando] = useState<VotoResolucao | null>(null);
+  const [fotosVoto, setFotosVoto] = useState<string[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [enviandoVoto, setEnviandoVoto] = useState(false);
   const [erro, setErro] = useState('');
-  const [mensagem, setMensagem] =
-    useState('');
+  const [mensagem, setMensagem] = useState('');
 
-  const usuarioId =
-    sessao?.user.id ?? null;
+  const carregarDados = useCallback(async () => {
+    try {
+      setCarregando(true);
+      setErro('');
+      const [dadosOcorrencia, dadosHistorico] = await Promise.all([
+        buscarOcorrencia(ocorrenciaId), buscarHistoricoOcorrencia(ocorrenciaId),
+      ]);
+      setOcorrencia(dadosOcorrencia);
+      setHistorico(dadosHistorico);
+      setResumo(usuarioId ? await buscarResumoValidacoes(ocorrenciaId, usuarioId) : RESUMO_INICIAL);
+    } catch (error) {
+      console.error('Erro ao carregar ocorrência:', error);
+      setErro('Não foi possível carregar esta ocorrência.');
+    } finally {
+      setCarregando(false);
+    }
+  }, [ocorrenciaId, usuarioId]);
 
-  const carregarDados =
-    useCallback(async () => {
-      try {
-        setCarregando(true);
-        setErro('');
-
-        const [
-          dadosOcorrencia,
-          dadosHistorico,
-        ] = await Promise.all([
-          buscarOcorrencia(
-            ocorrenciaId
-          ),
-          buscarHistoricoOcorrencia(
-            ocorrenciaId
-          ),
-        ]);
-
-        setOcorrencia(
-          dadosOcorrencia
-        );
-        setHistorico(
-          dadosHistorico
-        );
-
-        if (usuarioId) {
-          const dadosResumo =
-            await buscarResumoValidacoes(
-              ocorrenciaId,
-              usuarioId
-            );
-
-          setResumo(
-            dadosResumo
-          );
-        } else {
-          setResumo(
-            resumoInicial
-          );
-        }
-      } catch (error) {
-        if (
-          error instanceof Error
-        ) {
-          console.error(
-            error.message
-          );
-        }
-
-        setErro(
-          'Não foi possível carregar esta ocorrência.'
-        );
-      } finally {
-        setCarregando(false);
-      }
-    }, [
-      ocorrenciaId,
-      usuarioId,
-    ]);
-
-  useEffect(() => {
-    carregarDados();
-  }, [carregarDados]);
+  useEffect(() => { void carregarDados(); }, [carregarDados]);
 
   async function confirmar() {
-    if (
-      !usuarioId ||
-      enviandoVoto
-    ) {
-      return;
-    }
-
+    if (!usuarioId || enviandoVoto) return;
     try {
       setEnviandoVoto(true);
       setMensagem('');
-
-      await confirmarProblema(
-        ocorrenciaId,
-        usuarioId
-      );
-
-      setMensagem(
-        'Ocorrência confirmada.'
-      );
-
+      await confirmarProblema(ocorrenciaId, usuarioId);
+      setMensagem('Ocorrência confirmada.');
       await carregarDados();
     } catch (error) {
-      setMensagem(
-        mensagemErroVoto(
-          error
-        )
-      );
+      setMensagem(mensagemErroVoto(error));
     } finally {
-      setEnviandoVoto(
-        false
-      );
+      setEnviandoVoto(false);
     }
   }
 
-  function prepararVoto(
-    voto: VotoResolucao
-  ) {
+  function prepararVoto(voto: VotoResolucao) {
     setVotoPreparando(voto);
     setFotosVoto([]);
     setMensagem('');
   }
 
   async function tirarFotoVoto() {
-    if (fotosVoto.length >= 3) {
-      setMensagem(
-        'Você pode adicionar no máximo 3 fotos.'
-      );
-      return;
-    }
-
+    if (fotosVoto.length >= 3) return setMensagem('Você pode adicionar no máximo 3 fotos.');
     try {
-      const permissao =
-        await ImagePicker
-          .requestCameraPermissionsAsync();
-
-      if (!permissao.granted) {
-        setMensagem(
-          'É necessário permitir o acesso à câmera.'
-        );
-        return;
-      }
-
-      const resultado =
-        await ImagePicker
-          .launchCameraAsync({
-            mediaTypes: ['images'],
-            quality: 0.7,
-          });
-
-      if (resultado.canceled) {
-        return;
-      }
-
-      setFotosVoto(
-        (atual) => [
-          ...atual,
-          resultado.assets[0].uri,
-        ]
-      );
-
+      const permissao = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissao.granted) return setMensagem('É necessário permitir o acesso à câmera.');
+      const resultado = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
+      if (resultado.canceled) return;
+      setFotosVoto((atual) => [...atual, resultado.assets[0].uri]);
       setMensagem('');
     } catch {
-      setMensagem(
-        'Não foi possível utilizar a câmera.'
-      );
+      setMensagem('Não foi possível utilizar a câmera.');
     }
-  }
-
-  function removerFotoVoto(
-    indice: number
-  ) {
-    setFotosVoto(
-      (atual) =>
-        atual.filter(
-          (_, posicao) =>
-            posicao !== indice
-        )
-    );
-
-    setMensagem('');
   }
 
   async function enviarVoto() {
-    if (
-      !usuarioId ||
-      !votoPreparando ||
-      enviandoVoto
-    ) {
-      return;
-    }
-
+    if (!usuarioId || !votoPreparando || enviandoVoto) return;
     try {
       setEnviandoVoto(true);
       setMensagem('');
-
-      await votarResolucao(
-        ocorrenciaId,
-        usuarioId,
-        votoPreparando,
-        fotosVoto
-      );
-
-      setMensagem(
-        votoPreparando ===
-          'RESOLVIDO'
-          ? 'Voto registrado como resolvido.'
-          : 'Voto registrado como ainda existe.'
-      );
-
-      setVotoPreparando(
-        null
-      );
+      await votarResolucao(ocorrenciaId, usuarioId, votoPreparando, fotosVoto);
+      setMensagem(votoPreparando === 'RESOLVIDO'
+        ? 'Voto registrado como resolvido.' : 'Voto registrado como ainda existe.');
+      setVotoPreparando(null);
       setFotosVoto([]);
-
       await carregarDados();
     } catch (error) {
-      setMensagem(
-        mensagemErroVoto(
-          error
-        )
-      );
+      setMensagem(mensagemErroVoto(error));
     } finally {
-      setEnviandoVoto(
-        false
-      );
+      setEnviandoVoto(false);
     }
   }
 
-  if (carregando) {
-    return (
-      <View style={styles.centralizado}>
-        <ActivityIndicator />
+  if (carregando || erro || !ocorrencia) return <View style={styles.centralizado}>
+    {carregando && <ActivityIndicator />}
+    <Text style={styles.mensagem}>
+      {erro || (carregando ? 'Carregando ocorrência...' : 'Ocorrência não encontrada.')}
+    </Text>
+  </View>;
 
-        <Text style={styles.mensagem}>
-          Carregando ocorrência...
-        </Text>
-      </View>
-    );
-  }
-
-  if (
-    erro ||
-    !ocorrencia
-  ) {
-    return (
-      <View style={styles.centralizado}>
-        <Text style={styles.mensagem}>
-          {erro ||
-            'Ocorrência não encontrada.'}
-        </Text>
-      </View>
-    );
-  }
-
-  const ehAutor =
-    usuarioId ===
-    ocorrencia.usuario_id;
-
-  const evidenciaResolucao =
-    [...historico]
-      .reverse()
-      .find(
-        (evento) =>
-          evento.voto ===
-            'RESOLVIDO' &&
-          evento.fotos.length > 0
-      );
-
-  return (
-    <ScrollView
-      contentContainerStyle={
-        styles.container
-      }
-    >
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={
-          false
-        }
-        contentContainerStyle={
-          styles.galeria
-        }
-      >
-        {ocorrencia.fotos.map(
-          (foto, indice) => (
-            <View
-              key={foto.id}
-              style={
-                styles.cartaoFoto
-              }
-            >
-              <Image
-                source={{
-                  uri: foto.foto_url,
-                }}
-                style={styles.foto}
-              />
-
-              {ocorrencia.fotos
-                .length > 1 ? (
-                <Text
-                  style={
-                    styles.numeroFoto
-                  }
-                >
-                  {indice + 1}/
-                  {
-                    ocorrencia
-                      .fotos.length
-                  }
-                </Text>
-              ) : null}
-            </View>
-          )
-        )}
-      </ScrollView>
-
-      <View style={styles.bloco}>
-        <Text style={styles.titulo}>
-          {tituloCategoria(
-            ocorrencia.categoria
-          )}
-        </Text>
-
-        <Text>
-          Gravidade:{' '}
-          {tituloGravidade(
-            ocorrencia.gravidade
-          )}
-        </Text>
-
-        <Text>
-          Status:{' '}
-          {tituloStatus(
-            ocorrencia.status
-          )}
-        </Text>
-
-        {ocorrencia.bairro ? (
-          <Text>
-            {
-              ocorrencia
-                .bairro.nome
-            }{' '}
-            —{' '}
-            {
-              ocorrencia
-                .bairro.municipio
-            }
-            /
-            {
-              ocorrencia
-                .bairro.uf
-            }
-          </Text>
-        ) : null}
-
-        {ocorrencia.descricao ? (
-          <Text
-            style={
-              styles.descricao
-            }
-          >
-            {ocorrencia.descricao}
-          </Text>
-        ) : null}
-
-        {ocorrencia.status ===
-          'ATIVA' &&
-        ocorrencia.ativado_em ? (
-          <Text style={styles.dataStatus}>
-            Ativa desde{' '}
-            {formatarData(
-              ocorrencia.ativado_em
-            )}
-          </Text>
-        ) : null}
-
-        {ocorrencia.status ===
-          'RESOLVIDA' &&
-        ocorrencia.resolvido_em ? (
-          <Text style={styles.dataStatus}>
-            Resolvida em{' '}
-            {formatarData(
-              ocorrencia.resolvido_em
-            )}
-          </Text>
-        ) : null}
-      </View>
-
-      {ocorrencia.status ===
-        'RESOLVIDA' &&
-      evidenciaResolucao ? (
-        <View style={styles.bloco}>
-          <Text
-            style={styles.subtitulo}
-          >
-            Evidência da resolução
-          </Text>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={
-              false
-            }
-            contentContainerStyle={
-              styles.galeria
-            }
-          >
-            {evidenciaResolucao
-              .fotos.map((foto) => (
-                <Image
-                  key={foto.id}
-                  source={{
-                    uri:
-                      foto.foto_url,
-                  }}
-                  style={
-                    styles
-                      .fotoEvidenciaDestaque
-                  }
-                />
-              ))}
-          </ScrollView>
-        </View>
-      ) : null}
-
-      <View style={styles.bloco}>
-        <Text style={styles.subtitulo}>
-          Validação da comunidade
-        </Text>
-
-        {sessao ? (
-          <>
-            {ocorrencia.status ===
-            'PENDENTE_VALIDACAO' ? (
-              <Text style={styles.contagem}>
-                Confirmações:{' '}
-                {resumo.confirmacoes}/3
-              </Text>
-            ) : (
-              <Text style={styles.contagem}>
-                Confirmações concluídas
-              </Text>
-            )}
-
-            {ocorrencia.status ===
-            'ATIVA' ? (
-              <>
-                <Text style={styles.contagem}>
-                  Resolvido:{' '}
-                  {resumo.resolvidos}/3
-                </Text>
-
-                <Text style={styles.contagem}>
-                  Ainda existe:{' '}
-                  {resumo.aindaExiste}
-                </Text>
-
-                {resumo.votoResolucaoUsuario ? (
-                  <Text style={styles.votoAtual}>
-                    Seu voto atual:{' '}
-                    {tituloVoto(
-                      resumo
-                        .votoResolucaoUsuario
-                    )}
-                  </Text>
-                ) : null}
-              </>
-            ) : null}
-          </>
-        ) : null}
-
-        {ocorrencia.status ===
-        'RESOLVIDA' ? (
-          <Text style={styles.aviso}>
-            Esta ocorrência foi marcada
-            como resolvida.
-          </Text>
-        ) : null}
-
-        {!sessao ? (
-          <Text style={styles.aviso}>
-            Entre na sua conta para
-            participar da validação.
-          </Text>
-        ) : ehAutor ? (
-          <Text style={styles.aviso}>
-            Você registrou esta ocorrência
-            e não participa da votação
-            dela.
-          </Text>
-        ) : ocorrencia.status ===
-          'PENDENTE_VALIDACAO' ? (
-          resumo.usuarioConfirmou ? (
-            <Text style={styles.aviso}>
-              Você já confirmou esta
-              ocorrência.
-            </Text>
-          ) : (
-            <Pressable
-              style={[
-                styles.botaoPrincipal,
-                enviandoVoto &&
-                  styles.botaoDesabilitado,
-              ]}
-              onPress={confirmar}
-              disabled={enviandoVoto}
-            >
-              <Text
-                style={
-                  styles
-                    .textoBotaoPrincipal
-                }
-              >
-                {enviandoVoto
-                  ? 'Confirmando...'
-                  : 'Confirmar problema'}
-              </Text>
-            </Pressable>
-          )
-        ) : ocorrencia.status ===
-          'ATIVA' ? (
-          <View style={styles.acoes}>
-            <Pressable
-              style={[
-                styles.botaoVoto,
-                resumo
-                  .votoResolucaoUsuario ===
-                  'AINDA_EXISTE' &&
-                  styles
-                    .botaoVotoSelecionado,
-              ]}
-              onPress={() =>
-                prepararVoto(
-                  'AINDA_EXISTE'
-                )
-              }
-              disabled={enviandoVoto}
-            >
-              <Text
-                style={[
-                  styles.textoBotaoVoto,
-                  resumo
-                    .votoResolucaoUsuario ===
-                    'AINDA_EXISTE' &&
-                    styles
-                      .textoBotaoVotoSelecionado,
-                ]}
-              >
-                Ainda existe
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.botaoVoto,
-                resumo
-                  .votoResolucaoUsuario ===
-                  'RESOLVIDO' &&
-                  styles
-                    .botaoVotoSelecionado,
-              ]}
-              onPress={() =>
-                prepararVoto(
-                  'RESOLVIDO'
-                )
-              }
-              disabled={enviandoVoto}
-            >
-              <Text
-                style={[
-                  styles.textoBotaoVoto,
-                  resumo
-                    .votoResolucaoUsuario ===
-                    'RESOLVIDO' &&
-                    styles
-                      .textoBotaoVotoSelecionado,
-                ]}
-              >
-                Resolvido
-              </Text>
-            </Pressable>
-
-            {votoPreparando ? (
-              <View
-                style={
-                  styles
-                    .blocoPreparacao
-                }
-              >
-                <Text
-                  style={
-                    styles.subtitulo
-                  }
-                >
-                  {tituloVoto(
-                    votoPreparando
-                  )}
-                </Text>
-
-                <Text>
-                  Você pode anexar até
-                  3 fotos como evidência.
-                  As fotos são opcionais.
-                </Text>
-
-                {fotosVoto.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={
-                      false
-                    }
-                    contentContainerStyle={
-                      styles.galeria
-                    }
-                  >
-                    {fotosVoto.map(
-                      (
-                        fotoUri,
-                        indice
-                      ) => (
-                        <View
-                          key={
-                            fotoUri +
-                            indice
-                          }
-                        >
-                          <Image
-                            source={{
-                              uri:
-                                fotoUri,
-                            }}
-                            style={
-                              styles
-                                .fotoEvidencia
-                            }
-                          />
-
-                          <Text
-                            style={
-                              styles
-                                .numeroFoto
-                            }
-                          >
-                            Foto{' '}
-                            {indice + 1}
-                          </Text>
-
-                          <Pressable
-                            style={
-                              styles
-                                .botaoRemover
-                            }
-                            onPress={() =>
-                              removerFotoVoto(
-                                indice
-                              )
-                            }
-                            disabled={
-                              enviandoVoto
-                            }
-                          >
-                            <Text
-                              style={
-                                styles
-                                  .textoRemover
-                              }
-                            >
-                              Remover
-                            </Text>
-                          </Pressable>
-                        </View>
-                      )
-                    )}
-                  </ScrollView>
-                ) : null}
-
-                {fotosVoto.length < 3 ? (
-                  <Pressable
-                    style={
-                      styles
-                        .botaoSecundario
-                    }
-                    onPress={
-                      tirarFotoVoto
-                    }
-                    disabled={
-                      enviandoVoto
-                    }
-                  >
-                    <Text
-                      style={
-                        styles
-                          .textoBotaoSecundario
-                      }
-                    >
-                      {fotosVoto.length ===
-                      0
-                        ? 'Adicionar foto'
-                        : 'Adicionar outra foto'}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Text
-                    style={styles.aviso}
-                  >
-                    Limite de 3 fotos
-                    atingido.
-                  </Text>
-                )}
-
-                <Pressable
-                  style={
-                    styles
-                      .botaoPrincipal
-                  }
-                  onPress={
-                    enviarVoto
-                  }
-                  disabled={
-                    enviandoVoto
-                  }
-                >
-                  <Text
-                    style={
-                      styles
-                        .textoBotaoPrincipal
-                    }
-                  >
-                    {enviandoVoto
-                      ? 'Enviando...'
-                      : 'Confirmar voto'}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={
-                    styles
-                      .botaoSecundario
-                  }
-                  onPress={() => {
-                    setVotoPreparando(
-                      null
-                    );
-                    setFotosVoto([]);
-                    setMensagem('');
-                  }}
-                  disabled={
-                    enviandoVoto
-                  }
-                >
-                  <Text
-                    style={
-                      styles
-                        .textoBotaoSecundario
-                    }
-                  >
-                    Cancelar
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {enviandoVoto &&
-        ocorrencia.status ===
-          'ATIVA' ? (
-          <ActivityIndicator
-            style={
-              styles.carregandoVoto
-            }
-          />
-        ) : null}
-
-        {mensagem ? (
-          <Text
-            style={styles.mensagem}
-          >
-            {mensagem}
-          </Text>
-        ) : null}
-      </View>
-
-      {historico.length > 0 ? (
-        <View style={styles.bloco}>
-          <Pressable
-            onPress={() =>
-              setHistoricoAberto(
-                (atual) => !atual
-              )
-            }
-          >
-            <Text
-              style={
-                styles.linkHistorico
-              }
-            >
-              {historicoAberto
-                ? 'Ocultar histórico'
-                : 'Ver histórico da ocorrência >'}
-            </Text>
-          </Pressable>
-
-          {historicoAberto ? (
-            <View
-              style={
-                styles.historico
-              }
-            >
-              <View
-                style={
-                  styles.eventoHistorico
-                }
-              >
-                <Text
-                  style={
-                    styles.tituloEvento
-                  }
-                >
-                  Relato original
-                </Text>
-
-                <Text>
-                  {formatarData(
-                    ocorrencia
-                      .criado_em
-                  )}
-                </Text>
-
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={
-                    false
-                  }
-                  contentContainerStyle={
-                    styles.galeria
-                  }
-                >
-                  {ocorrencia.fotos.map(
-                    (foto) => (
-                      <Image
-                        key={foto.id}
-                        source={{
-                          uri:
-                            foto
-                              .foto_url,
-                        }}
-                        style={
-                          styles
-                            .fotoHistorico
-                        }
-                      />
-                    )
-                  )}
-                </ScrollView>
-              </View>
-
-              {historico.map(
-                (evento) => (
-                  <View
-                    key={
-                      evento.id
-                    }
-                    style={
-                      styles
-                        .eventoHistorico
-                    }
-                  >
-                    <Text
-                      style={
-                        styles
-                          .tituloEvento
-                      }
-                    >
-                      {tituloVoto(
-                        evento.voto
-                      )}
-                    </Text>
-
-                    <Text>
-                      {formatarData(
-                        evento
-                          .criado_em
-                      )}
-                    </Text>
-
-                    {evento.fotos
-                      .length > 0 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={
-                          false
-                        }
-                        contentContainerStyle={
-                          styles.galeria
-                        }
-                      >
-                        {evento.fotos.map(
-                          (foto) => (
-                            <Image
-                              key={
-                                foto.id
-                              }
-                              source={{
-                                uri:
-                                  foto
-                                    .foto_url,
-                              }}
-                              style={
-                                styles
-                                  .fotoHistorico
-                              }
-                            />
-                          )
-                        )}
-                      </ScrollView>
-                    ) : (
-                      <Text
-                        style={
-                          styles
-                            .semFotos
-                        }
-                      >
-                        Sem foto anexada.
-                      </Text>
-                    )}
-                  </View>
-                )
-              )}
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-    </ScrollView>
+  const ehAutor = usuarioId === ocorrencia.usuario_id;
+  const pendente = ocorrencia.status === 'PENDENTE_VALIDACAO';
+  const ativa = ocorrencia.status === 'ATIVA';
+  const resolvida = ocorrencia.status === 'RESOLVIDA';
+  const evidenciaResolucao = [...historico].reverse().find(
+    (evento) => evento.voto === 'RESOLVIDO' && evento.fotos.length > 0
   );
+
+  return <ScrollView contentContainerStyle={styles.container}>
+    <GaleriaFotos fotos={ocorrencia.fotos} estilo="original" numeracao />
+
+    <View style={styles.bloco}>
+      <Text style={styles.titulo}>{CATEGORIAS[ocorrencia.categoria]}</Text>
+      <Text>Gravidade: {GRAVIDADES[ocorrencia.gravidade]}</Text>
+      <Text>Status: {STATUS[ocorrencia.status]}</Text>
+      {ocorrencia.bairro && <Text>
+        {ocorrencia.bairro.nome} — {ocorrencia.bairro.municipio}/{ocorrencia.bairro.uf}
+      </Text>}
+      {!!ocorrencia.descricao && <Text style={styles.descricao}>{ocorrencia.descricao}</Text>}
+      {ativa && ocorrencia.ativado_em &&
+        <Text style={styles.dataStatus}>Ativa desde {formatarData(ocorrencia.ativado_em)}</Text>}
+      {resolvida && ocorrencia.resolvido_em &&
+        <Text style={styles.dataStatus}>Resolvida em {formatarData(ocorrencia.resolvido_em)}</Text>}
+    </View>
+
+    {resolvida && evidenciaResolucao && <View style={styles.bloco}>
+      <Text style={styles.subtitulo}>Evidência da resolução</Text>
+      <GaleriaFotos fotos={evidenciaResolucao.fotos} estilo="destaque" />
+    </View>}
+
+    <View style={styles.bloco}>
+      <Text style={styles.subtitulo}>Validação da comunidade</Text>
+      {sessao && <>
+        <Text style={styles.contagem}>
+          {pendente ? `Confirmações: ${resumo.confirmacoes}/3` : 'Confirmações concluídas'}
+        </Text>
+        {ativa && <>
+          <Text style={styles.contagem}>Resolvido: {resumo.resolvidos}/3</Text>
+          <Text style={styles.contagem}>Ainda existe: {resumo.aindaExiste}</Text>
+          {resumo.votoResolucaoUsuario && <Text style={styles.votoAtual}>
+            Seu voto atual: {tituloVoto(resumo.votoResolucaoUsuario)}
+          </Text>}
+        </>}
+      </>}
+
+      {resolvida && <Text style={styles.aviso}>Esta ocorrência foi marcada como resolvida.</Text>}
+      {!sessao ? <Text style={styles.aviso}>Entre na sua conta para participar da validação.</Text>
+        : ehAutor ? <Text style={styles.aviso}>
+          Você registrou esta ocorrência e não participa da votação dela.
+        </Text>
+        : pendente ? (resumo.usuarioConfirmou
+          ? <Text style={styles.aviso}>Você já confirmou esta ocorrência.</Text>
+          : <Pressable style={[styles.botaoPrincipal, enviandoVoto && styles.botaoDesabilitado]}
+              onPress={confirmar} disabled={enviandoVoto}>
+              <Text style={styles.textoBotaoPrincipal}>
+                {enviandoVoto ? 'Confirmando...' : 'Confirmar problema'}
+              </Text>
+            </Pressable>)
+        : ativa && <View style={styles.acoes}>
+          {(['AINDA_EXISTE', 'RESOLVIDO'] as VotoResolucao[]).map((voto) =>
+            <Pressable key={voto} disabled={enviandoVoto}
+              style={[styles.botaoVoto, resumo.votoResolucaoUsuario === voto && styles.botaoVotoSelecionado]}
+              onPress={() => prepararVoto(voto)}>
+              <Text style={[styles.textoBotaoVoto,
+                resumo.votoResolucaoUsuario === voto && styles.textoBotaoVotoSelecionado]}>
+                {tituloVoto(voto)}
+              </Text>
+            </Pressable>)}
+
+          {votoPreparando && <View style={styles.blocoPreparacao}>
+            <Text style={styles.subtitulo}>{tituloVoto(votoPreparando)}</Text>
+            <Text>Você pode anexar até 3 fotos como evidência. As fotos são opcionais.</Text>
+            {!!fotosVoto.length && <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.galeria}>
+              {fotosVoto.map((fotoUri, indice) => <View key={`${fotoUri}-${indice}`}>
+                <Image source={{ uri: fotoUri }} style={styles.fotoEvidencia} />
+                <Text style={styles.numeroFoto}>Foto {indice + 1}</Text>
+                <Pressable style={styles.botaoRemover} disabled={enviandoVoto}
+                  onPress={() => setFotosVoto((atual) => atual.filter((_, posicao) => posicao !== indice))}>
+                  <Text style={styles.textoRemover}>Remover</Text>
+                </Pressable>
+              </View>)}
+            </ScrollView>}
+            {fotosVoto.length < 3 ? <Pressable style={styles.botaoSecundario}
+              onPress={tirarFotoVoto} disabled={enviandoVoto}>
+              <Text style={styles.textoBotaoSecundario}>
+                {fotosVoto.length === 0 ? 'Adicionar foto' : 'Adicionar outra foto'}
+              </Text>
+            </Pressable> : <Text style={styles.aviso}>Limite de 3 fotos atingido.</Text>}
+            <Pressable style={styles.botaoPrincipal} onPress={enviarVoto} disabled={enviandoVoto}>
+              <Text style={styles.textoBotaoPrincipal}>{enviandoVoto ? 'Enviando...' : 'Confirmar voto'}</Text>
+            </Pressable>
+            <Pressable style={styles.botaoSecundario} disabled={enviandoVoto} onPress={() => {
+              setVotoPreparando(null);
+              setFotosVoto([]);
+              setMensagem('');
+            }}>
+              <Text style={styles.textoBotaoSecundario}>Cancelar</Text>
+            </Pressable>
+          </View>}
+        </View>}
+
+      {enviandoVoto && ativa && <ActivityIndicator style={styles.carregandoVoto} />}
+      {!!mensagem && <Text style={styles.mensagem}>{mensagem}</Text>}
+    </View>
+
+    {!!historico.length && <View style={styles.bloco}>
+      <Pressable onPress={() => setHistoricoAberto((atual) => !atual)}>
+        <Text style={styles.linkHistorico}>
+          {historicoAberto ? 'Ocultar histórico' : 'Ver histórico da ocorrência >'}
+        </Text>
+      </Pressable>
+      {historicoAberto && <View style={styles.historico}>
+        <View style={styles.eventoHistorico}>
+          <Text style={styles.tituloEvento}>Relato original</Text>
+          <Text>{formatarData(ocorrencia.criado_em)}</Text>
+          <GaleriaFotos fotos={ocorrencia.fotos} estilo="historico" />
+        </View>
+        {historico.map((evento) => <View key={evento.id} style={styles.eventoHistorico}>
+          <Text style={styles.tituloEvento}>{tituloVoto(evento.voto)}</Text>
+          <Text>{formatarData(evento.criado_em)}</Text>
+          {evento.fotos.length > 0
+            ? <GaleriaFotos fotos={evento.fotos} estilo="historico" />
+            : <Text style={styles.semFotos}>Sem foto anexada.</Text>}
+        </View>)}
+      </View>}
+    </View>}
+  </ScrollView>;
 }
 
-
-const resumoGeralInicial:
-  ResumoOcorrenciasGeral = {
-    ativas: 0,
-    resolvidasMes: 0,
-    tempoMedioResolucaoDias: null,
-    ocorrenciasAtivas: [],
-    ocorrenciasAnteriores: [],
-  };
-
-function tituloCategoriaGeral(
-  categoria: string
-) {
-  switch (categoria) {
-    case 'PAVIMENTACAO':
-      return 'Pavimentação';
-    case 'ILUMINACAO':
-      return 'Iluminação';
-    case 'ESGOTO':
-      return 'Esgoto';
-    case 'CALCAMENTO':
-      return 'Calçamento';
-    default:
-      return categoria;
-  }
-}
-
-function CartaoOcorrencia({
-  ocorrencia,
-  onPress,
-}: {
-  ocorrencia: OcorrenciaResumoGeral;
-  onPress: () => void;
+function CartaoOcorrencia({ ocorrencia, onPress }: {
+  ocorrencia: OcorrenciaResumoGeral; onPress: () => void;
 }) {
-  const dataAtiva =
-    ocorrencia.ativado_em ??
-    ocorrencia.criado_em;
+  const dias = diasDesde(ocorrencia.ativado_em ?? ocorrencia.criado_em);
+  return <Pressable style={styles.itemGeral} onPress={onPress}>
+    <Text style={styles.nomeItemGeral}>{CATEGORIAS[ocorrencia.categoria] ?? ocorrencia.categoria}</Text>
+    {ocorrencia.bairro && <Text>
+      {ocorrencia.bairro.nome} — {ocorrencia.bairro.municipio}/{ocorrencia.bairro.uf}
+    </Text>}
+    {ocorrencia.resolvido_em
+      ? <Text>Resolvida em {formatarData(ocorrencia.resolvido_em)}</Text>
+      : <Text>{dias === 0 ? 'Ativa hoje' : `Ativa há ${dias} ${dias === 1 ? 'dia' : 'dias'}`}</Text>}
+    <Text>Gravidade: {ocorrencia.gravidade}</Text>
+  </Pressable>;
+}
 
-  const dias =
-    diasDesde(dataAtiva);
-
-  return (
-    <Pressable
-      style={styles.itemGeral}
-      onPress={onPress}
-    >
-      <Text style={styles.nomeItemGeral}>
-        {tituloCategoriaGeral(
-          ocorrencia.categoria
-        )}
-      </Text>
-
-      {ocorrencia.bairro ? (
-        <Text>
-          {ocorrencia.bairro.nome} —{' '}
-          {ocorrencia.bairro.municipio}/
-          {ocorrencia.bairro.uf}
-        </Text>
-      ) : null}
-
-      {ocorrencia.resolvido_em ? (
-        <Text>
-          Resolvida em{' '}
-          {formatarData(
-            ocorrencia.resolvido_em
-          )}
-        </Text>
-      ) : (
-        <Text>
-          {dias === 0
-            ? 'Ativa hoje'
-            : `Ativa há ${dias} ${
-                dias === 1
-                  ? 'dia'
-                  : 'dias'
-              }`}
-        </Text>
-      )}
-
-      <Text>
-        Gravidade:{' '}
-        {ocorrencia.gravidade}
-      </Text>
-    </Pressable>
-  );
+function Metrica({ valor, nome }: { valor: number | string; nome: string }) {
+  return <View style={styles.metrica}>
+    <Text style={styles.valorMetrica}>{valor}</Text>
+    <Text style={styles.nomeMetrica}>{nome}</Text>
+  </View>;
 }
 
 function PainelOcorrencias() {
-  const navigation =
-    useNavigation<
-      NavigationProp<
-        RootStackParamList
-      >
-    >();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const [resumoGeral, setResumoGeral] = useState(GERAL_INICIAL);
+  const [carregandoGeral, setCarregandoGeral] = useState(true);
+  const [erroGeral, setErroGeral] = useState('');
+  const [anterioresAbertas, setAnterioresAbertas] = useState(false);
 
-  const [
-    resumoGeral,
-    setResumoGeral,
-  ] = useState<
-    ResumoOcorrenciasGeral
-  >(resumoGeralInicial);
-
-  const [
-    carregandoGeral,
-    setCarregandoGeral,
-  ] = useState(true);
-
-  const [
-    erroGeral,
-    setErroGeral,
-  ] = useState('');
-
-  const [
-    anterioresAbertas,
-    setAnterioresAbertas,
-  ] = useState(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      let ativo = true;
-
-      async function carregar() {
-        try {
-          setCarregandoGeral(true);
-          setErroGeral('');
-
-          const dados =
-            await buscarResumoOcorrencias();
-
-          if (ativo) {
-            setResumoGeral(dados);
-          }
-        } catch (error) {
-          if (
-            error instanceof Error
-          ) {
-            console.error(
-              error.message
-            );
-          }
-
-          if (ativo) {
-            setErroGeral(
-              'Não foi possível carregar as ocorrências.'
-            );
-          }
-        } finally {
-          if (ativo) {
-            setCarregandoGeral(false);
-          }
-        }
+  useFocusEffect(useCallback(() => {
+    let ativo = true;
+    async function carregar() {
+      try {
+        setCarregandoGeral(true);
+        setErroGeral('');
+        const dados = await buscarResumoOcorrencias();
+        if (ativo) setResumoGeral(dados);
+      } catch (error) {
+        console.error('Erro ao carregar ocorrências:', error);
+        if (ativo) setErroGeral('Não foi possível carregar as ocorrências.');
+      } finally {
+        if (ativo) setCarregandoGeral(false);
       }
+    }
+    void carregar();
+    return () => { ativo = false; };
+  }, []));
 
-      carregar();
+  if (carregandoGeral || erroGeral) return <View style={styles.centralizado}>
+    {carregandoGeral && <ActivityIndicator />}
+    <Text style={styles.mensagem}>{erroGeral || 'Carregando ocorrências...'}</Text>
+  </View>;
 
-      return () => {
-        ativo = false;
-      };
-    }, [])
-  );
+  const abrirOcorrencia = (ocorrenciaId: string) => navigation.navigate('Ocorrencia', { ocorrenciaId });
+  const tempo = resumoGeral.tempoMedioResolucaoDias;
 
-  if (carregandoGeral) {
-    return (
-      <View style={styles.centralizado}>
-        <ActivityIndicator />
-        <Text style={styles.mensagem}>
-          Carregando ocorrências...
-        </Text>
-      </View>
-    );
-  }
+  return <ScrollView contentContainerStyle={styles.container}>
+    <Text style={styles.tituloGeral}>Ocorrências</Text>
+    <View style={styles.metricas}>
+      <Metrica valor={resumoGeral.ativas} nome="Ativas agora" />
+      <Metrica valor={resumoGeral.resolvidasMes} nome="Resolvidas neste mês" />
+      <Metrica valor={tempo === null ? '—' : Math.round(tempo)}
+        nome={tempo === null ? 'Tempo médio' : 'Dias em média'} />
+    </View>
 
-  if (erroGeral) {
-    return (
-      <View style={styles.centralizado}>
-        <Text style={styles.mensagem}>
-          {erroGeral}
-        </Text>
-      </View>
-    );
-  }
+    <Text style={styles.subtitulo}>Ocorrências ativas</Text>
+    {!resumoGeral.ocorrenciasAtivas.length
+      ? <Text style={styles.mensagem}>Nenhuma ocorrência ativa neste momento.</Text>
+      : resumoGeral.ocorrenciasAtivas.map((item) =>
+        <CartaoOcorrencia key={item.id} ocorrencia={item} onPress={() => abrirOcorrencia(item.id)} />)}
 
-  const abrirOcorrencia = (
-    ocorrenciaId: string
-  ) => {
-    navigation.navigate(
-      'Ocorrencia',
-      { ocorrenciaId }
-    );
-  };
-
-  return (
-    <ScrollView
-      contentContainerStyle={
-        styles.container
-      }
-    >
-      <Text style={styles.tituloGeral}>
-        Ocorrências
+    <Pressable style={styles.botaoAnteriores} onPress={() => setAnterioresAbertas((atual) => !atual)}>
+      <Text style={styles.textoBotaoAnteriores}>
+        {anterioresAbertas ? 'Ocultar ocorrências anteriores' : 'Ver ocorrências anteriores >'}
       </Text>
-
-      <View style={styles.metricas}>
-        <View style={styles.metrica}>
-          <Text style={styles.valorMetrica}>
-            {resumoGeral.ativas}
-          </Text>
-          <Text style={styles.nomeMetrica}>
-            Ativas agora
-          </Text>
-        </View>
-
-        <View style={styles.metrica}>
-          <Text style={styles.valorMetrica}>
-            {resumoGeral.resolvidasMes}
-          </Text>
-          <Text style={styles.nomeMetrica}>
-            Resolvidas neste mês
-          </Text>
-        </View>
-
-        <View style={styles.metrica}>
-          <Text style={styles.valorMetrica}>
-            {resumoGeral
-              .tempoMedioResolucaoDias ===
-            null
-              ? '—'
-              : Math.round(
-                  resumoGeral
-                    .tempoMedioResolucaoDias
-                )}
-          </Text>
-          <Text style={styles.nomeMetrica}>
-            {resumoGeral
-              .tempoMedioResolucaoDias ===
-            null
-              ? 'Tempo médio'
-              : 'Dias em média'}
-          </Text>
-        </View>
-      </View>
-
-      <Text style={styles.subtitulo}>
-        Ocorrências ativas
-      </Text>
-
-      {resumoGeral
-        .ocorrenciasAtivas.length ===
-      0 ? (
-        <Text style={styles.mensagem}>
-          Nenhuma ocorrência ativa
-          neste momento.
-        </Text>
-      ) : (
-        resumoGeral
-          .ocorrenciasAtivas
-          .map((ocorrencia) => (
-            <CartaoOcorrencia
-              key={ocorrencia.id}
-              ocorrencia={ocorrencia}
-              onPress={() =>
-                abrirOcorrencia(
-                  ocorrencia.id
-                )
-              }
-            />
-          ))
-      )}
-
-      <Pressable
-        style={styles.botaoAnteriores}
-        onPress={() =>
-          setAnterioresAbertas(
-            (atual) => !atual
-          )
-        }
-      >
-        <Text
-          style={
-            styles.textoBotaoAnteriores
-          }
-        >
-          {anterioresAbertas
-            ? 'Ocultar ocorrências anteriores'
-            : 'Ver ocorrências anteriores >'}
-        </Text>
-      </Pressable>
-
-      {anterioresAbertas ? (
-        <View style={styles.listaAnteriores}>
-          <Text style={styles.subtitulo}>
-            Ocorrências anteriores
-          </Text>
-
-          {resumoGeral
-            .ocorrenciasAnteriores
-            .length === 0 ? (
-            <Text style={styles.mensagem}>
-              Ainda não existem
-              ocorrências resolvidas há
-              mais de 30 dias.
-            </Text>
-          ) : (
-            resumoGeral
-              .ocorrenciasAnteriores
-              .map((ocorrencia) => (
-                <CartaoOcorrencia
-                  key={ocorrencia.id}
-                  ocorrencia={
-                    ocorrencia
-                  }
-                  onPress={() =>
-                    abrirOcorrencia(
-                      ocorrencia.id
-                    )
-                  }
-                />
-              ))
-          )}
-        </View>
-      ) : null}
-    </ScrollView>
-  );
+    </Pressable>
+    {anterioresAbertas && <View style={styles.listaAnteriores}>
+      <Text style={styles.subtitulo}>Ocorrências anteriores</Text>
+      {!resumoGeral.ocorrenciasAnteriores.length
+        ? <Text style={styles.mensagem}>Ainda não existem ocorrências resolvidas há mais de 30 dias.</Text>
+        : resumoGeral.ocorrenciasAnteriores.map((item) =>
+          <CartaoOcorrencia key={item.id} ocorrencia={item} onPress={() => abrirOcorrencia(item.id)} />)}
+    </View>}
+  </ScrollView>;
 }
 
 export default function Ocorrencias() {
   const route = useRoute();
-
-  const ocorrenciaId =
-    (
-      route.params as
-        | {
-            ocorrenciaId?: string;
-          }
-        | undefined
-    )?.ocorrenciaId;
-
-  if (!ocorrenciaId) {
-    return <PainelOcorrencias />;
-  }
-
-  return (
-    <DetalheOcorrencia
-      ocorrenciaId={ocorrenciaId}
-    />
-  );
+  const ocorrenciaId = (route.params as { ocorrenciaId?: string } | undefined)?.ocorrenciaId;
+  return ocorrenciaId ? <DetalheOcorrencia ocorrenciaId={ocorrenciaId} /> : <PainelOcorrencias />;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    gap: 16,
-  },
-
-  centralizado: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-
-  galeria: {
-    gap: 10,
-  },
-
-  cartaoFoto: {
-    width: 300,
-  },
-
-  foto: {
-    width: 300,
-    height: 240,
-    borderRadius: 10,
-  },
-
-  fotoEvidencia: {
-    width: 180,
-    height: 135,
-    borderRadius: 8,
-  },
-
-  fotoEvidenciaDestaque: {
-    width: 280,
-    height: 210,
-    borderRadius: 10,
-  },
-
-  fotoHistorico: {
-    width: 160,
-    height: 120,
-    borderRadius: 8,
-  },
-
-  numeroFoto: {
-    textAlign: 'center',
-    marginTop: 4,
-    fontWeight: '600',
-  },
-
-  bloco: {
-    borderWidth: 1,
-    borderColor: '#dddddd',
-    borderRadius: 10,
-    padding: 16,
-    gap: 8,
-  },
-
-  blocoPreparacao: {
-    borderWidth: 1,
-    borderColor: '#dddddd',
-    borderRadius: 8,
-    padding: 12,
-    gap: 8,
-  },
-
-  titulo: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-
-  subtitulo: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-
-  descricao: {
-    marginTop: 8,
-  },
-
-  dataStatus: {
-    marginTop: 4,
-    fontWeight: '600',
-  },
-
-  contagem: {
-    fontWeight: '600',
-  },
-
-  votoAtual: {
-    marginTop: 4,
-  },
-
-  aviso: {
-    marginTop: 6,
-    textAlign: 'center',
-  },
-
-  acoes: {
-    gap: 8,
-    marginTop: 8,
-  },
-
-  botaoPrincipal: {
-    backgroundColor: '#222222',
-    borderRadius: 8,
-    padding: 14,
-    marginTop: 8,
-  },
-
-  textoBotaoPrincipal: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-
-  botaoVoto: {
-    borderWidth: 1,
-    borderColor: '#222222',
-    borderRadius: 8,
-    padding: 12,
-  },
-
-  botaoVotoSelecionado: {
-    backgroundColor: '#222222',
-  },
-
-  textoBotaoVoto: {
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-
-  textoBotaoVotoSelecionado: {
-    color: '#ffffff',
-  },
-
-  botaoSecundario: {
-    borderWidth: 1,
-    borderColor: '#222222',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-  },
-
-  textoBotaoSecundario: {
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-
-  botaoRemover: {
-    borderWidth: 1,
-    borderColor: '#b00020',
-    borderRadius: 8,
-    padding: 6,
-    marginTop: 4,
-  },
-
-  textoRemover: {
-    color: '#b00020',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-
-  botaoDesabilitado: {
-    opacity: 0.6,
-  },
-
-  carregandoVoto: {
-    marginTop: 8,
-  },
-
-  mensagem: {
-    textAlign: 'center',
-    marginTop: 8,
-  },
-
-  linkHistorico: {
-    fontWeight: 'bold',
-    textAlign: 'right',
-  },
-
-  historico: {
-    gap: 12,
-    marginTop: 8,
-  },
-
-  eventoHistorico: {
-    borderTopWidth: 1,
-    borderTopColor: '#eeeeee',
-    paddingTop: 10,
-    gap: 6,
-  },
-
-  tituloEvento: {
-    fontWeight: 'bold',
-  },
-
-  semFotos: {
-    fontStyle: 'italic',
-  },
-
-  tituloGeral: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-
-  metricas: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-
-  metrica: {
-    width: '48%',
-    borderWidth: 1,
-    borderColor: '#dddddd',
-    borderRadius: 10,
-    padding: 16,
-    minHeight: 100,
-    justifyContent: 'center',
-  },
-
-  valorMetrica: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-
-  nomeMetrica: {
-    textAlign: 'center',
-    marginTop: 4,
-  },
-
-  itemGeral: {
-    borderWidth: 1,
-    borderColor: '#dddddd',
-    borderRadius: 10,
-    padding: 14,
-    gap: 5,
-  },
-
-  nomeItemGeral: {
-    fontSize: 17,
-    fontWeight: 'bold',
-  },
-
-  botaoAnteriores: {
-    marginTop: 4,
-    paddingVertical: 10,
-  },
-
-  textoBotaoAnteriores: {
-    fontWeight: 'bold',
-    textAlign: 'right',
-  },
-
-  listaAnteriores: {
-    gap: 10,
-  },
+  container: { padding: 20, gap: 16 },
+  centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  galeria: { gap: 10 },
+  foto: { width: 300, height: 240, borderRadius: 10 },
+  fotoEvidencia: { width: 180, height: 135, borderRadius: 8 },
+  fotoEvidenciaDestaque: { width: 280, height: 210, borderRadius: 10 },
+  fotoHistorico: { width: 160, height: 120, borderRadius: 8 },
+  numeroFoto: { textAlign: 'center', marginTop: 4, fontWeight: '600' },
+  bloco: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 10, padding: 16, gap: 8 },
+  blocoPreparacao: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 8, padding: 12, gap: 8 },
+  titulo: { fontSize: 22, fontWeight: 'bold' },
+  subtitulo: { fontSize: 18, fontWeight: 'bold' },
+  descricao: { marginTop: 8 },
+  dataStatus: { marginTop: 4, fontWeight: '600' },
+  contagem: { fontWeight: '600' },
+  votoAtual: { marginTop: 4 },
+  aviso: { marginTop: 6, textAlign: 'center' },
+  acoes: { gap: 8, marginTop: 8 },
+  botaoPrincipal: { backgroundColor: '#222222', borderRadius: 8, padding: 14, marginTop: 8 },
+  botaoDesabilitado: { opacity: 0.5 },
+  textoBotaoPrincipal: { color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
+  botaoVoto: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12 },
+  botaoVotoSelecionado: { backgroundColor: '#222222' },
+  textoBotaoVoto: { fontWeight: 'bold', textAlign: 'center' },
+  textoBotaoVotoSelecionado: { color: '#ffffff' },
+  botaoSecundario: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12, marginTop: 8 },
+  textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
+  carregandoVoto: { marginTop: 6 },
+  botaoRemover: { borderWidth: 1, borderColor: '#b00020', borderRadius: 8, padding: 8, marginTop: 6 },
+  textoRemover: { color: '#b00020', fontWeight: 'bold', textAlign: 'center' },
+  mensagem: { marginTop: 8, textAlign: 'center' },
+  linkHistorico: { color: '#222222', fontWeight: 'bold', textDecorationLine: 'underline' },
+  historico: { gap: 12 },
+  eventoHistorico: { borderTopWidth: 1, borderColor: '#eeeeee', paddingTop: 12, gap: 8 },
+  tituloEvento: { fontWeight: 'bold' },
+  semFotos: { color: '#666666' },
+  tituloGeral: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
+  metricas: { flexDirection: 'row', gap: 8 },
+  metrica: { flex: 1, borderWidth: 1, borderColor: '#dddddd', borderRadius: 8,
+    padding: 10, alignItems: 'center', justifyContent: 'center' },
+  valorMetrica: { fontSize: 21, fontWeight: 'bold' },
+  nomeMetrica: { fontSize: 11, textAlign: 'center' },
+  itemGeral: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 8, padding: 12, gap: 4 },
+  nomeItemGeral: { fontSize: 16, fontWeight: 'bold' },
+  botaoAnteriores: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12 },
+  textoBotaoAnteriores: { fontWeight: 'bold', textAlign: 'center' },
+  listaAnteriores: { gap: 12 },
 });

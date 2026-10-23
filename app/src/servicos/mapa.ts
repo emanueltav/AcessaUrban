@@ -1,9 +1,6 @@
 import { supabase } from './supabase';
 
-export type StatusOcorrencia =
-  | 'PENDENTE_VALIDACAO'
-  | 'ATIVA'
-  | 'RESOLVIDA';
+export type StatusOcorrencia = 'PENDENTE_VALIDACAO' | 'ATIVA' | 'RESOLVIDA';
 
 type BairroMapa = {
   nome: string;
@@ -27,76 +24,48 @@ export type OcorrenciaMapa = {
   bairro: BairroMapa | null;
 };
 
-function resolvidaAindaVisivel(
-  resolvidoEm: string | null
-) {
-  if (!resolvidoEm) {
-    return false;
-  }
+function resolvidaAindaVisivel(resolvidoEm: string | null): boolean {
+  if (!resolvidoEm) return false;
 
   const limite = new Date();
   limite.setDate(limite.getDate() - 30);
-
   return new Date(resolvidoEm) >= limite;
 }
 
-export async function listarOcorrenciasMapa(): Promise<
-  OcorrenciaMapa[]
-> {
+export async function listarOcorrenciasMapa(): Promise<OcorrenciaMapa[]> {
   const { data, error } = await supabase
     .from('ocorrencias')
     .select(`
-      id,
-      usuario_id,
-      categoria,
-      gravidade,
-      descricao,
-      latitude,
-      longitude,
-      foto_url,
-      status,
-      criado_em,
-      ativado_em,
-      resolvido_em,
-      bairro:bairros (
-        nome,
-        municipio,
-        uf
-      )
+      id, usuario_id, categoria, gravidade, descricao,
+      latitude, longitude, foto_url, status, criado_em,
+      ativado_em, resolvido_em,
+      bairro:bairros (nome, municipio, uf)
     `)
-    .order('criado_em', {
-      ascending: false,
-    });
+    .order('criado_em', { ascending: false });
 
   if (error) {
-    throw new Error(
-      `Erro ao carregar ocorrências: ${error.message}`
-    );
+    throw new Error(`Erro ao carregar ocorrências: ${error.message}`);
   }
 
   return (data ?? [])
-    .map((ocorrencia) => {
-      const bairro = Array.isArray(ocorrencia.bairro)
-        ? ocorrencia.bairro[0] ?? null
-        : ocorrencia.bairro ?? null;
+    .map((item): OcorrenciaMapa => {
+      const bairro = Array.isArray(item.bairro)
+        ? item.bairro[0] ?? null
+        : item.bairro ?? null;
 
       return {
-        id: String(ocorrencia.id),
-        usuario_id: String(ocorrencia.usuario_id),
-        categoria: String(ocorrencia.categoria),
-        gravidade: String(ocorrencia.gravidade),
-        descricao: ocorrencia.descricao,
-        latitude: Number(ocorrencia.latitude),
-        longitude: Number(ocorrencia.longitude),
-        foto_url: String(ocorrencia.foto_url),
-        status: ocorrencia.status as StatusOcorrencia,
-        criado_em: String(ocorrencia.criado_em),
-        ativado_em: ocorrencia.ativado_em
-          ? String(ocorrencia.ativado_em)
-          : null,
-        resolvido_em: ocorrencia.resolvido_em
-          ? String(ocorrencia.resolvido_em)
-          : null,
+        id: String(item.id),
+        usuario_id: String(item.usuario_id),
+        categoria: String(item.categoria),
+        gravidade: String(item.gravidade),
+        descricao: item.descricao,
+        latitude: Number(item.latitude),
+        longitude: Number(item.longitude),
+        foto_url: String(item.foto_url),
+        status: item.status as StatusOcorrencia,
+        criado_em: String(item.criado_em),
+        ativado_em: item.ativado_em ? String(item.ativado_em) : null,
+        resolvido_em: item.resolvido_em ? String(item.resolvido_em) : null,
         bairro: bairro
           ? {
               nome: String(bairro.nome),
@@ -106,13 +75,7 @@ export async function listarOcorrenciasMapa(): Promise<
           : null,
       };
     })
-    .filter((ocorrencia) => {
-      if (ocorrencia.status !== 'RESOLVIDA') {
-        return true;
-      }
-
-      return resolvidaAindaVisivel(
-        ocorrencia.resolvido_em
-      );
-    });
+    .filter((item) =>
+      item.status !== 'RESOLVIDA' || resolvidaAindaVisivel(item.resolvido_em)
+    );
 }

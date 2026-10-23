@@ -1,13 +1,7 @@
-import {
-  enviarFotoStorage,
-  FotoEnviada,
-  removerFotosStorage,
-} from './fotos';
+import { enviarFotosStorage, removerFotosStorage } from './fotos';
 import { supabase } from './supabase';
 
-export type StatusPraca =
-  | 'PENDENTE'
-  | 'APROVADA';
+export type StatusPraca = 'PENDENTE' | 'APROVADA';
 
 export type FotoPraca = {
   id: string;
@@ -22,13 +16,7 @@ export type Praca = {
   status: StatusPraca;
   criado_em: string;
   fotos: FotoPraca[];
-
-  bairro: {
-    nome: string;
-    municipio: string;
-    uf: string;
-  } | null;
-
+  bairro: { nome: string; municipio: string; uf: string } | null;
   confirmacoes: number;
   usuarioConfirmou: boolean;
   media: number | null;
@@ -36,206 +24,63 @@ export type Praca = {
   avaliacaoUsuario: number | null;
 };
 
-export async function listarPracas(
-  usuarioId?: string | null
-): Promise<Praca[]> {
-  const { data, error } =
-    await supabase
-      .from('pracas')
-      .select(`
-        id,
-        usuario_id,
-        nome,
-        status,
-        criado_em,
+export async function listarPracas(usuarioId?: string | null): Promise<Praca[]> {
+  const { data, error } = await supabase
+    .from('pracas')
+    .select(`
+      id, usuario_id, nome, status, criado_em,
+      bairro:bairros (nome, municipio, uf),
+      fotos:praca_fotos (id, foto_url, ordem),
+      confirmacoes:praca_confirmacoes (usuario_id),
+      avaliacoes:praca_avaliacoes (usuario_id, nota)
+    `)
+    .order('criado_em', { ascending: false });
 
-        bairro:bairros (
-          nome,
-          municipio,
-          uf
-        ),
+  if (error) throw new Error(`Erro ao carregar praças: ${error.message}`);
 
-        fotos:praca_fotos (
-          id,
-          foto_url,
-          ordem
-        ),
+  return (data ?? []).map((item): Praca => {
+    const bairro = Array.isArray(item.bairro)
+      ? item.bairro[0] ?? null
+      : item.bairro ?? null;
 
-        confirmacoes:praca_confirmacoes (
-          usuario_id
-        ),
+    const fotos = Array.isArray(item.fotos)
+      ? [...item.fotos].sort((a, b) => Number(a.ordem) - Number(b.ordem))
+      : [];
 
-        avaliacoes:praca_avaliacoes (
-          usuario_id,
-          nota
-        )
-      `)
-      .order(
-        'criado_em',
-        {
-          ascending: false,
-        }
-      );
+    const confirmacoes = Array.isArray(item.confirmacoes) ? item.confirmacoes : [];
+    const avaliacoes = Array.isArray(item.avaliacoes) ? item.avaliacoes : [];
+    const soma = avaliacoes.reduce((total, avaliacao) => total + Number(avaliacao.nota), 0);
+    const avaliacaoUsuario = usuarioId
+      ? avaliacoes.find((avaliacao) => String(avaliacao.usuario_id) === usuarioId)
+      : undefined;
 
-  if (error) {
-    throw new Error(
-      `Erro ao carregar praças: ${error.message}`
-    );
-  }
-
-  return (data ?? []).map(
-    (item) => {
-      const bairro =
-        Array.isArray(
-          item.bairro
-        )
-          ? item.bairro[0] ?? null
-          : item.bairro ?? null;
-
-      const fotos =
-        Array.isArray(
-          item.fotos
-        )
-          ? [...item.fotos].sort(
-              (a, b) =>
-                Number(a.ordem) -
-                Number(b.ordem)
-            )
-          : [];
-
-      const confirmacoes =
-        Array.isArray(
-          item.confirmacoes
-        )
-          ? item.confirmacoes
-          : [];
-
-      const avaliacoes =
-        Array.isArray(
-          item.avaliacoes
-        )
-          ? item.avaliacoes
-          : [];
-
-      const totalAvaliacoes =
-        avaliacoes.length;
-
-      const soma =
-        avaliacoes.reduce(
-          (
-            total,
-            avaliacao
-          ) =>
-            total +
-            Number(
-              avaliacao.nota
-            ),
-          0
-        );
-
-      const avaliacaoUsuario =
-        usuarioId
-          ? avaliacoes.find(
-              (avaliacao) =>
-                String(
-                  avaliacao.usuario_id
-                ) ===
-                usuarioId
-            )
-          : undefined;
-
-      return {
-        id: String(item.id),
-
-        usuario_id:
-          item.usuario_id
-            ? String(
-                item.usuario_id
-              )
-            : null,
-
-        nome: String(
-          item.nome
-        ),
-
-        status:
-          String(
-            item.status
-          ) as StatusPraca,
-
-        criado_em: String(
-          item.criado_em
-        ),
-
-        fotos: fotos.map(
-          (foto) => ({
-            id: String(
-              foto.id
-            ),
-
-            foto_url:
-              String(
-                foto.foto_url
-              ),
-
-            ordem:
-              Number(
-                foto.ordem
-              ),
-          })
-        ),
-
-        bairro: bairro
-          ? {
-              nome: String(
-                bairro.nome
-              ),
-
-              municipio:
-                String(
-                  bairro.municipio
-                ),
-
-              uf: String(
-                bairro.uf
-              ),
-            }
-          : null,
-
-        confirmacoes:
-          confirmacoes.length,
-
-        usuarioConfirmou:
-          usuarioId
-            ? confirmacoes.some(
-                (confirmacao) =>
-                  String(
-                    confirmacao
-                      .usuario_id
-                  ) ===
-                  usuarioId
-              )
-            : false,
-
-        media:
-          totalAvaliacoes >
-          0
-            ? soma /
-              totalAvaliacoes
-            : null,
-
-        totalAvaliacoes,
-
-        avaliacaoUsuario:
-          avaliacaoUsuario
-            ? Number(
-                avaliacaoUsuario
-                  .nota
-              )
-            : null,
-      };
-    }
-  );
+    return {
+      id: String(item.id),
+      usuario_id: item.usuario_id ? String(item.usuario_id) : null,
+      nome: String(item.nome),
+      status: String(item.status) as StatusPraca,
+      criado_em: String(item.criado_em),
+      fotos: fotos.map((foto) => ({
+        id: String(foto.id),
+        foto_url: String(foto.foto_url),
+        ordem: Number(foto.ordem),
+      })),
+      bairro: bairro
+        ? {
+            nome: String(bairro.nome),
+            municipio: String(bairro.municipio),
+            uf: String(bairro.uf),
+          }
+        : null,
+      confirmacoes: confirmacoes.length,
+      usuarioConfirmou: usuarioId
+        ? confirmacoes.some((item) => String(item.usuario_id) === usuarioId)
+        : false,
+      media: avaliacoes.length ? soma / avaliacoes.length : null,
+      totalAvaliacoes: avaliacoes.length,
+      avaliacaoUsuario: avaliacaoUsuario ? Number(avaliacaoUsuario.nota) : null,
+    };
+  });
 }
 
 type NovaPraca = {
@@ -246,132 +91,47 @@ type NovaPraca = {
   longitude: number;
 };
 
-export async function registrarPraca(
-  dados: NovaPraca
-) {
-  if (
-    dados.fotoUris.length < 1 ||
-    dados.fotoUris.length > 3
-  ) {
-    throw new Error(
-      'A praça deve possuir entre 1 e 3 fotos.'
-    );
+export async function registrarPraca(dados: NovaPraca): Promise<string> {
+  if (dados.fotoUris.length < 1 || dados.fotoUris.length > 3) {
+    throw new Error('A praça deve possuir entre 1 e 3 fotos.');
   }
 
-  if (!dados.nome.trim()) {
-    throw new Error(
-      'Informe o nome da praça.'
-    );
-  }
+  if (!dados.nome.trim()) throw new Error('Informe o nome da praça.');
 
-  const fotosEnviadas:
-    FotoEnviada[] = [];
+  const fotos = await enviarFotosStorage(dados.usuarioId, dados.fotoUris, 'pracas');
 
   try {
-    for (
-      const fotoUri
-      of dados.fotoUris
-    ) {
-      const foto =
-        await enviarFotoStorage(
-          dados.usuarioId,
-          fotoUri,
-          'pracas'
-        );
+    const { data, error } = await supabase.rpc('registrar_praca_com_fotos', {
+      p_nome: dados.nome.trim(),
+      p_latitude: dados.latitude,
+      p_longitude: dados.longitude,
+      p_foto_urls: fotos.map((foto) => foto.url),
+      p_caminhos_storage: fotos.map((foto) => foto.caminho),
+    });
 
-      fotosEnviadas.push(
-        foto
-      );
-    }
-
-    const { data, error } =
-      await supabase.rpc(
-        'registrar_praca_com_fotos',
-        {
-          p_nome:
-            dados.nome.trim(),
-
-          p_latitude:
-            dados.latitude,
-
-          p_longitude:
-            dados.longitude,
-
-          p_foto_urls:
-            fotosEnviadas.map(
-              (foto) =>
-                foto.url
-            ),
-
-          p_caminhos_storage:
-            fotosEnviadas.map(
-              (foto) =>
-                foto.caminho
-            ),
-        }
-      );
-
-    if (error) {
-      throw new Error(
-        `Erro ao registrar praça: ${error.message}`
-      );
-    }
-
+    if (error) throw new Error(`Erro ao registrar praça: ${error.message}`);
     return String(data);
   } catch (error) {
-    await removerFotosStorage(
-      fotosEnviadas.map(
-        (foto) =>
-          foto.caminho
-      )
-    );
-
+    await removerFotosStorage(fotos.map((foto) => foto.caminho));
     throw error;
   }
 }
 
-export async function confirmarPraca(
-  pracaId: string,
-  nota: number
-) {
-  const { data, error } =
-    await supabase.rpc(
-      'confirmar_praca',
-      {
-        p_praca_id:
-          pracaId,
-        p_nota:
-          nota,
-      }
-    );
+export async function confirmarPraca(pracaId: string, nota: number): Promise<string> {
+  const { data, error } = await supabase.rpc('confirmar_praca', {
+    p_praca_id: pracaId,
+    p_nota: nota,
+  });
 
-  if (error) {
-    throw new Error(
-      `Erro ao confirmar praça: ${error.message}`
-    );
-  }
-
+  if (error) throw new Error(`Erro ao confirmar praça: ${error.message}`);
   return String(data);
 }
 
-export async function avaliarPraca(
-  pracaId: string,
-  nota: number
-) {
-  const { error } =
-    await supabase.rpc(
-      'avaliar_praca',
-      {
-        p_praca_id:
-          pracaId,
-        p_nota:
-          nota,
-      }
-    );
+export async function avaliarPraca(pracaId: string, nota: number): Promise<void> {
+  const { error } = await supabase.rpc('avaliar_praca', {
+    p_praca_id: pracaId,
+    p_nota: nota,
+  });
 
-  if (error) {
-    throw new Error(
-      `Erro ao avaliar praça: ${error.message}`
-    );
-  }
+  if (error) throw new Error(`Erro ao avaliar praça: ${error.message}`);
 }

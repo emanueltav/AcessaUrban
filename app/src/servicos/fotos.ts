@@ -11,14 +11,10 @@ export async function enviarFotoStorage(
   pasta: string
 ): Promise<FotoEnviada> {
   const resposta = await fetch(fotoUri);
+
   const arquivo = await resposta.arrayBuffer();
-
-  const nomeArquivo = `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}.jpg`;
-
-  const caminho =
-    `${usuarioId}/${pasta}/${nomeArquivo}`;
+  const nomeArquivo = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const caminho = `${usuarioId}/${pasta}/${nomeArquivo}`;
 
   const { error } = await supabase.storage
     .from('fotos')
@@ -28,39 +24,39 @@ export async function enviarFotoStorage(
     });
 
   if (error) {
-    throw new Error(
-      `Erro ao enviar foto: ${error.message}`
-    );
+    throw new Error(`Erro ao enviar foto: ${error.message}`);
   }
 
-  const { data } = supabase.storage
-    .from('fotos')
-    .getPublicUrl(caminho);
+  const { data } = supabase.storage.from('fotos').getPublicUrl(caminho);
 
-  return {
-    url: data.publicUrl,
-    caminho,
-  };
+  return { url: data.publicUrl, caminho };
 }
 
-export async function removerFotosStorage(
-  caminhos: string[]
-) {
-  const caminhosValidos =
-    caminhos.filter(Boolean);
+export async function removerFotosStorage(caminhos: string[]): Promise<void> {
+  const validos = caminhos.filter(Boolean);
+  if (validos.length === 0) return;
 
-  if (caminhosValidos.length === 0) {
-    return;
-  }
-
-  const { error } = await supabase.storage
-    .from('fotos')
-    .remove(caminhosValidos);
+  const { error } = await supabase.storage.from('fotos').remove(validos);
 
   if (error) {
-    console.error(
-      'Erro ao remover fotos do Storage:',
-      error
-    );
+    console.error('Erro ao remover fotos do Storage:', error);
+  }
+}
+
+export async function enviarFotosStorage(
+  usuarioId: string,
+  fotoUris: string[],
+  pasta: string
+): Promise<FotoEnviada[]> {
+  const enviadas: FotoEnviada[] = [];
+
+  try {
+    for (const uri of fotoUris) {
+      enviadas.push(await enviarFotoStorage(usuarioId, uri, pasta));
+    }
+    return enviadas;
+  } catch (error) {
+    await removerFotosStorage(enviadas.map((foto) => foto.caminho));
+    throw error;
   }
 }
