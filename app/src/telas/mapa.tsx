@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
 
+import type { RootStackParamList } from '../navegacao/rotas';
 import { listarOcorrenciasMapa, OcorrenciaMapa } from '../servicos/mapa';
 
 const TITULOS: Record<OcorrenciaMapa['status'], string> = {
@@ -11,6 +12,7 @@ const TITULOS: Record<OcorrenciaMapa['status'], string> = {
 };
 
 export default function Mapa() {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [ocorrencias, setOcorrencias] = useState<OcorrenciaMapa[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -57,6 +59,9 @@ export default function Mapa() {
         No navegador, as ocorrências atuais e as resolvidas
         nos últimos 30 dias são listadas abaixo.
       </Text>
+      <Pressable style={styles.explorarPracas} onPress={() => navigation.navigate('Pracas')}>
+        <Text style={styles.textoExplorar}>Explorar praças</Text>
+      </Pressable>
 
       {ocorrencias.length === 0 ? (
         <Text style={styles.mensagem}>Nenhuma ocorrência disponível.</Text>
@@ -86,6 +91,9 @@ export default function Mapa() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24 },
+  explorarPracas: { alignSelf: 'flex-start', backgroundColor: '#0F2C40',
+    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, marginBottom: 20 },
+  textoExplorar: { color: '#EAE8DB', fontWeight: '700' },
   centralizado: {
     flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24,
   },

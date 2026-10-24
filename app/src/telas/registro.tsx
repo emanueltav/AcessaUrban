@@ -150,7 +150,7 @@ export default function Registro() {
   if (!sessao) return <View style={styles.centralizado}>
     <Text style={styles.titulo}>Registro de Ocorrência</Text>
     <Text style={styles.textoCentralizado}>Entre na sua conta para registrar uma ocorrência.</Text>
-    <Text style={styles.textoCentralizado}>Use a aba Conta para fazer login ou criar seu cadastro.</Text>
+    <Text style={styles.textoCentralizado}>Volte ao mapa e abra o menu superior para entrar ou criar uma conta.</Text>
   </View>;
 
   return <ScrollView contentContainerStyle={styles.container}>

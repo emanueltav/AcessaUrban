@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   NavigationProp,
   useFocusEffect,
@@ -60,6 +60,7 @@ export default function Mapa() {
   }
 
   return (
+    <View style={styles.container}>
     <Map style={styles.mapa} mapStyle={ESTILO_MAPA}>
       <Camera initialViewState={{ center: CENTRO_INICIAL, zoom: 10 }} />
 
@@ -84,11 +85,20 @@ export default function Mapa() {
         </Marker>
       ))}
     </Map>
+    <Pressable style={styles.explorarPracas} onPress={() => navigation.navigate('Pracas')}
+      accessibilityRole="button" accessibilityLabel="Explorar praças">
+      <Text style={styles.textoExplorar}>Explorar praças</Text>
+    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   mapa: { flex: 1 },
+  explorarPracas: { position: 'absolute', bottom: 18, right: 16, backgroundColor: '#0F2C40',
+    paddingVertical: 12, paddingHorizontal: 18, borderRadius: 24, elevation: 3 },
+  textoExplorar: { color: '#EAE8DB', fontWeight: '700' },
   centralizado: {
     flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24,
   },

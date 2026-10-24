@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAutenticacao } from '../contextos/autenticacao';
 import { atualizarBairroPerfil, buscarBairros, buscarPerfil } from '../servicos/perfil';
@@ -25,6 +25,18 @@ export default function Conta() {
   const [buscaBairro, setBuscaBairro] = useState('');
   const [resultadosBairro, setResultadosBairro] = useState<BairroPerfil[]>([]);
   const [pesquisandoBairro, setPesquisandoBairro] = useState(false);
+
+  useEffect(() => {
+    if (usuarioId) return;
+    setCadastro(false);
+    setNome('');
+    setEmail('');
+    setSenha('');
+    setMensagem('');
+    setEditandoBairro(false);
+    setBuscaBairro('');
+    setResultadosBairro([]);
+  }, [usuarioId]);
 
   useFocusEffect(useCallback(() => {
     if (!usuarioId) {
@@ -75,6 +87,7 @@ export default function Conta() {
           })
         : await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
       if (error) throw error;
+      setSenha('');
     }, cadastro ? 'Não foi possível criar a conta.' : 'Não foi possível entrar na conta.');
   }
 
@@ -83,6 +96,13 @@ export default function Conta() {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     }, 'Não foi possível sair da conta.');
+  }
+
+  function confirmarSaida() {
+    Alert.alert('Sair da conta?', 'Deseja realmente encerrar sua sessão no AcessaUrban?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: () => { void sair(); } },
+    ]);
   }
 
   async function pesquisarBairros() {
@@ -176,7 +196,7 @@ export default function Conta() {
           </View>
         )}
 
-        <Pressable style={styles.botao} onPress={sair} disabled={processando}>
+        <Pressable style={styles.botao} onPress={confirmarSaida} disabled={processando}>
           <Text style={styles.textoBotao}>{processando ? 'Aguarde...' : 'Sair'}</Text>
         </Pressable>
         {mensagem ? <Text style={styles.mensagem}>{mensagem}</Text> : null}

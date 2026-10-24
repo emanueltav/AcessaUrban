@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAutenticacao } from '../contextos/autenticacao';
@@ -17,10 +17,12 @@ function bonusPraca(praca: Praca) {
 }
 
 export default function Pracas() {
+  const route = useRoute();
+  const abrirCadastro = (route.params as { abrirCadastro?: boolean } | undefined)?.abrirCadastro;
   const { sessao } = useAutenticacao();
   const usuarioId = sessao?.user.id ?? null;
   const [pracas, setPracas] = useState<Praca[]>([]);
-  const [cadastrando, setCadastrando] = useState(false);
+  const [cadastrando, setCadastrando] = useState(abrirCadastro === true);
   const [nome, setNome] = useState('');
   const [fotos, setFotos] = useState<string[]>([]);
   const [local, setLocal] = useState<Localizacao | null>(null);
