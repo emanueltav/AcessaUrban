@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAutenticacao } from '../contextos/autenticacao';
-import { registrarOcorrencia } from '../servicos/ocorrencias';
+import { buscarOcorrenciasProximas, registrarOcorrencia } from '../servicos/ocorrencias';
 
 type Categoria = 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO' | 'OUTRO';
 type Gravidade = 'LEVE' | 'MODERADO' | 'GRAVE';
@@ -39,9 +39,10 @@ export default function Registro() {
   const [gravidade, setGravidade] = useState<Gravidade | null>(null);
   const [descricao, setDescricao] = useState('');
   const [obtendoLocalizacao, setObtendoLocalizacao] = useState(false);
+  const [verificando, setVerificando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState('');
-  const ocupado = enviando || obtendoLocalizacao;
+  const ocupado = enviando || obtendoLocalizacao || verificando;
 
   function limpar() {
     setFotos([]); setLocal(null); setCategoria(null); setGravidade(null); setDescricao(''); setMensagem('');
@@ -87,17 +88,8 @@ export default function Registro() {
     setMensagem('');
   }
 
-  async function registrar() {
-    if (ocupado) return;
-    const aviso = !sessao ? 'É necessário estar autenticado.'
-      : !fotos.length ? 'Tire pelo menos uma foto do problema.'
-      : !local ? 'A localização ainda não foi obtida.'
-      : !categoria ? 'Selecione uma categoria.'
-      : !gravidade ? 'Selecione a gravidade.'
-      : !descricao.trim() ? 'Digite uma pequena descrição.' : '';
-    if (aviso) return setMensagem(aviso);
+  async function salvarRegistro() {
     if (!sessao || !local || !categoria || !gravidade) return;
-
     setEnviando(true);
     setMensagem('');
     try {
@@ -110,6 +102,47 @@ export default function Registro() {
       setMensagem(error instanceof Error ? error.message : 'Não foi possível registrar a ocorrência.');
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function registrar() {
+    if (ocupado) return;
+    const aviso = !sessao ? 'É necessário estar autenticado.'
+      : !fotos.length ? 'Tire pelo menos uma foto do problema.'
+      : !local ? 'A localização ainda não foi obtida.'
+      : !categoria ? 'Selecione uma categoria.'
+      : !gravidade ? 'Selecione a gravidade.'
+      : !descricao.trim() ? 'Digite uma pequena descrição.' : '';
+    if (aviso) return setMensagem(aviso);
+    if (!local || !categoria) return;
+
+    setVerificando(true);
+    setMensagem('');
+    try {
+      const proximas = await buscarOcorrenciasProximas(categoria, local);
+      if (!proximas.length) return await salvarRegistro();
+
+      const maisProxima = proximas[0];
+      const status = maisProxima.status === 'ATIVA' ? 'ativa' : 'pendente de validação';
+      const descricaoExistente = maisProxima.descricao?.trim();
+      const resumo = descricaoExistente
+        ? `\n\nDescrição: ${descricaoExistente.slice(0, 100)}${descricaoExistente.length > 100 ? '…' : ''}`
+        : '';
+
+      Alert.alert(
+        'Possível ocorrência duplicada',
+        `Encontramos uma ocorrência ${status} da mesma categoria a aproximadamente ` +
+        `${Math.round(maisProxima.distanciaMetros)} metros deste local.${resumo}\n\n` +
+        'Pode ser o mesmo problema. Deseja registrar mesmo assim?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Registrar mesmo assim', onPress: () => { void salvarRegistro(); } },
+        ]
+      );
+    } catch (erro) {
+      setMensagem(erro instanceof Error ? erro.message : 'Não foi possível verificar ocorrências próximas.');
+    } finally {
+      setVerificando(false);
     }
   }
 
@@ -149,18 +182,18 @@ export default function Registro() {
       </View>
       {local && !obtendoLocalizacao && <>
         <Text style={styles.rotulo}>3. Categoria</Text>
-        <Opcoes itens={categorias} valor={categoria} disabled={enviando}
+        <Opcoes itens={categorias} valor={categoria} disabled={ocupado}
           selecionar={(valor) => { setCategoria(valor); setMensagem(''); }} />
         <Text style={styles.rotulo}>4. Gravidade</Text>
-        <Opcoes itens={gravidades} valor={gravidade} disabled={enviando}
+        <Opcoes itens={gravidades} valor={gravidade} disabled={ocupado}
           selecionar={(valor) => { setGravidade(valor); setMensagem(''); }} />
         <Text style={styles.rotulo}>5. Descrição</Text>
         <TextInput style={styles.descricao} multiline maxLength={300}
-          placeholder="Descreva brevemente o problema" value={descricao} editable={!enviando}
+          placeholder="Descreva brevemente o problema" value={descricao} editable={!ocupado}
           onChangeText={(texto: string) => { setDescricao(texto); setMensagem(''); }} />
         <Text style={styles.contador}>{descricao.length}/300</Text>
         <Pressable style={styles.botao} onPress={registrar} disabled={ocupado}>
-          <Text style={styles.textoBotao}>{enviando ? 'Registrando...' : 'Registrar ocorrência'}</Text>
+          <Text style={styles.textoBotao}>{verificando ? 'Verificando...' : enviando ? 'Registrando...' : 'Registrar ocorrência'}</Text>
         </Pressable>
       </>}
     </>}

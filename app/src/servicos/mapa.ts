@@ -1,6 +1,30 @@
 import { supabase } from './supabase';
 
 export type StatusOcorrencia = 'PENDENTE_VALIDACAO' | 'ATIVA' | 'RESOLVIDA';
+export type Coordenadas = { latitude: number; longitude: number };
+
+export function distanciaMetros(origem: Coordenadas, destino: Coordenadas): number {
+  const radianos = Math.PI / 180;
+  const diferencaLatitude = (destino.latitude - origem.latitude) * radianos;
+  const diferencaLongitude = (destino.longitude - origem.longitude) * radianos;
+  const a = Math.sin(diferencaLatitude / 2) ** 2 +
+    Math.cos(origem.latitude * radianos) * Math.cos(destino.latitude * radianos) *
+    Math.sin(diferencaLongitude / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+export function limitesProximidade(local: Coordenadas, raioMetros: number) {
+  const margemLatitude = raioMetros / 110000;
+  const margemLongitude = raioMetros /
+    (110000 * Math.max(Math.abs(Math.cos(local.latitude * Math.PI / 180)), 0.01));
+
+  return {
+    minLat: local.latitude - margemLatitude,
+    maxLat: local.latitude + margemLatitude,
+    minLon: local.longitude - margemLongitude,
+    maxLon: local.longitude + margemLongitude,
+  };
+}
 
 type BairroMapa = {
   nome: string;

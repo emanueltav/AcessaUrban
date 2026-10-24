@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAutenticacao } from '../contextos/autenticacao';
-import { avaliarPraca, confirmarPraca, listarPracas, Praca, registrarPraca } from '../servicos/pracas';
+import { avaliarPraca, buscarPracasProximas, confirmarPraca, listarPracas, Praca, registrarPraca } from '../servicos/pracas';
 
 type Localizacao = { latitude: number; longitude: number };
 type Variante = 'principal' | 'secundario' | 'remover';
@@ -28,6 +28,7 @@ export default function Pracas() {
   const [notas, setNotas] = useState<Record<string, number>>({});
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState<string | null>(null);
+  const [verificando, setVerificando] = useState(false);
   const [mensagem, setMensagem] = useState('');
 
   const carregar = useCallback(async (preservarMensagem = false) => {
@@ -97,16 +98,42 @@ export default function Pracas() {
     } finally { setProcessando(null); }
   }
 
-  async function cadastrar() {
-    if (!usuarioId || processando) return;
-    if (!nome.trim()) return setMensagem('Informe o nome da praça.');
-    if (!fotos.length) return setMensagem('Adicione pelo menos uma foto da praça.');
-    if (!local) return setMensagem('A localização da praça ainda não foi obtida.');
+  async function salvarCadastro() {
+    if (!usuarioId || !local) return;
     await executar('cadastro', async () => {
       await registrarPraca({ usuarioId, nome, fotoUris: fotos, ...local });
       limparCadastro();
       return 'Praça cadastrada. Ela precisa de 2 confirmações para ser aprovada.';
     }, 'Não foi possível cadastrar a praça.');
+  }
+
+  async function cadastrar() {
+    if (!usuarioId || processando || verificando || buscandoGPS) return;
+    if (!nome.trim()) return setMensagem('Informe o nome da praça.');
+    if (!fotos.length) return setMensagem('Adicione pelo menos uma foto da praça.');
+    if (!local) return setMensagem('A localização da praça ainda não foi obtida.');
+
+    setVerificando(true);
+    setMensagem('');
+    try {
+      const proximas = await buscarPracasProximas(local);
+      if (!proximas.length) return await salvarCadastro();
+
+      const maisProxima = proximas[0];
+      const status = maisProxima.status === 'APROVADA' ? 'aprovada' : 'aguardando confirmação';
+      Alert.alert(
+        'Possível praça duplicada',
+        `A praça "${maisProxima.nome}" (${status}) está a aproximadamente ` +
+        `${Math.round(maisProxima.distanciaMetros)} metros deste local.\n\n` +
+        'Pode ser a mesma praça. Deseja cadastrar mesmo assim?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Cadastrar mesmo assim', onPress: () => { void salvarCadastro(); } },
+        ]
+      );
+    } catch (erro) {
+      setMensagem(erroTexto(erro, 'Não foi possível verificar praças próximas.'));
+    } finally { setVerificando(false); }
   }
 
   async function confirmar(praca: Praca) {
@@ -138,7 +165,7 @@ export default function Pracas() {
 
   const pendentes = pracas.filter((praca) => praca.status === 'PENDENTE');
   const aprovadas = pracas.filter((praca) => praca.status === 'APROVADA');
-  const ocupado = processando !== null;
+  const ocupado = processando !== null || verificando;
 
   return <ScrollView contentContainerStyle={styles.container}>
     <Text style={styles.titulo}>Praças</Text>
@@ -172,7 +199,7 @@ export default function Pracas() {
             <Botao variante="secundario" texto="Tentar localização novamente" acao={obterGPS} disabled={ocupado} />
           </>}
       </View>}
-      <Botao texto={processando === 'cadastro' ? 'Cadastrando...' : 'Registrar praça'} acao={cadastrar}
+      <Botao texto={verificando ? 'Verificando...' : processando === 'cadastro' ? 'Cadastrando...' : 'Registrar praça'} acao={cadastrar}
         disabled={ocupado || buscandoGPS} />
     </View>}
 
@@ -258,7 +285,7 @@ const styles = StyleSheet.create({
   textoBotaoPrincipal: { color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
   botaoSecundario: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12 },
   textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
-  botaoRemover: { borderWidth: 1, borderColor: '#b00020', borderRadius: 8, padding: 8, marginTop: 6 },
+  botaoRemover: { borderWidth: 1, borderColor: '#b00020', borderRadius: 8, padding: 8 },
   textoRemover: { color: '#b00020', fontWeight: 'bold', textAlign: 'center' },
   media: { fontSize: 17, fontWeight: 'bold' }, bonus: { fontWeight: '600' },
   estrelas: { flexDirection: 'row', gap: 8 }, estrela: { fontSize: 32 },

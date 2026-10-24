@@ -1,4 +1,5 @@
 import { enviarFotosStorage, removerFotosStorage } from './fotos';
+import { distanciaMetros, limitesProximidade, type Coordenadas } from './mapa';
 import { supabase } from './supabase';
 
 export type StatusPraca = 'PENDENTE' | 'APROVADA';
@@ -23,6 +24,40 @@ export type Praca = {
   totalAvaliacoes: number;
   avaliacaoUsuario: number | null;
 };
+
+export type PracaProxima = {
+  id: string;
+  nome: string;
+  status: StatusPraca;
+  distanciaMetros: number;
+};
+
+export async function buscarPracasProximas(local: Coordenadas): Promise<PracaProxima[]> {
+  const raio = 80;
+  const { minLat, maxLat, minLon, maxLon } = limitesProximidade(local, raio);
+  const { data, error } = await supabase
+    .from('pracas')
+    .select('id, nome, status, latitude, longitude')
+    .in('status', ['PENDENTE', 'APROVADA'])
+    .gte('latitude', minLat)
+    .lte('latitude', maxLat)
+    .gte('longitude', minLon)
+    .lte('longitude', maxLon);
+
+  if (error) throw new Error(`Erro ao verificar praças próximas: ${error.message}`);
+
+  return (data ?? [])
+    .map((item) => ({
+      id: String(item.id),
+      nome: String(item.nome),
+      status: item.status as StatusPraca,
+      distanciaMetros: distanciaMetros(local, {
+        latitude: Number(item.latitude), longitude: Number(item.longitude),
+      }),
+    }))
+    .filter((item) => item.distanciaMetros <= raio)
+    .sort((a, b) => a.distanciaMetros - b.distanciaMetros);
+}
 
 export async function listarPracas(usuarioId?: string | null): Promise<Praca[]> {
   const { data, error } = await supabase
@@ -71,7 +106,7 @@ export async function listarPracas(usuarioId?: string | null): Promise<Praca[]> 
             municipio: String(bairro.municipio),
             uf: String(bairro.uf),
           }
-        : null,
+          : null,
       confirmacoes: confirmacoes.length,
       usuarioConfirmou: usuarioId
         ? confirmacoes.some((item) => String(item.usuario_id) === usuarioId)

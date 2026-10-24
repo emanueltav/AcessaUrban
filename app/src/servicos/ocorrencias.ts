@@ -1,4 +1,5 @@
 import { enviarFotosStorage, removerFotosStorage } from './fotos';
+import { distanciaMetros, limitesProximidade, type Coordenadas } from './mapa';
 import { supabase } from './supabase';
 
 type NovaOcorrencia = {
@@ -28,6 +29,43 @@ export type ResumoOcorrenciasGeral = {
   ocorrenciasAtivas: OcorrenciaResumoGeral[];
   ocorrenciasAnteriores: OcorrenciaResumoGeral[];
 };
+
+export type OcorrenciaProxima = {
+  id: string;
+  descricao: string | null;
+  status: 'PENDENTE_VALIDACAO' | 'ATIVA';
+  distanciaMetros: number;
+};
+
+export async function buscarOcorrenciasProximas(
+  categoria: NovaOcorrencia['categoria'], local: Coordenadas
+): Promise<OcorrenciaProxima[]> {
+  const raio = 30;
+  const { minLat, maxLat, minLon, maxLon } = limitesProximidade(local, raio);
+  const { data, error } = await supabase
+    .from('ocorrencias')
+    .select('id, descricao, status, latitude, longitude')
+    .eq('categoria', categoria)
+    .in('status', ['PENDENTE_VALIDACAO', 'ATIVA'])
+    .gte('latitude', minLat)
+    .lte('latitude', maxLat)
+    .gte('longitude', minLon)
+    .lte('longitude', maxLon);
+
+  if (error) throw new Error(`Erro ao verificar ocorrências próximas: ${error.message}`);
+
+  return (data ?? [])
+    .map((item) => ({
+      id: String(item.id),
+      descricao: item.descricao,
+      status: item.status as OcorrenciaProxima['status'],
+      distanciaMetros: distanciaMetros(local, {
+        latitude: Number(item.latitude), longitude: Number(item.longitude),
+      }),
+    }))
+    .filter((item) => item.distanciaMetros <= raio)
+    .sort((a, b) => a.distanciaMetros - b.distanciaMetros);
+}
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
