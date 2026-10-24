@@ -6,7 +6,7 @@ type NovaOcorrencia = {
   fotoUris: string[];
   latitude: number;
   longitude: number;
-  categoria: 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO';
+  categoria: 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO' | 'OUTRO';
   gravidade: 'LEVE' | 'MODERADO' | 'GRAVE';
   descricao: string;
 };

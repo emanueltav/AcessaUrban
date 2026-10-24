@@ -2,7 +2,7 @@ import { enviarFotosStorage, removerFotosStorage } from './fotos';
 import { supabase } from './supabase';
 
 export type StatusOcorrencia = 'PENDENTE_VALIDACAO' | 'ATIVA' | 'RESOLVIDA';
-export type CategoriaOcorrencia = 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO';
+export type CategoriaOcorrencia = 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO' | 'OUTRO';
 export type GravidadeOcorrencia = 'LEVE' | 'MODERADO' | 'GRAVE';
 export type VotoResolucao = 'AINDA_EXISTE' | 'RESOLVIDO';
 

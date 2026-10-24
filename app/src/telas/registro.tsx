@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import { useAutenticacao } from '../contextos/autenticacao';
 import { registrarOcorrencia } from '../servicos/ocorrencias';
 
-type Categoria = 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO';
+type Categoria = 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO' | 'OUTRO';
 type Gravidade = 'LEVE' | 'MODERADO' | 'GRAVE';
 type Coordenadas = { latitude: number; longitude: number };
 type Opcao<T extends string> = { valor: T; titulo: string };
@@ -13,6 +13,7 @@ type Opcao<T extends string> = { valor: T; titulo: string };
 const categorias: Opcao<Categoria>[] = [
   { valor: 'PAVIMENTACAO', titulo: 'Pavimentação' }, { valor: 'ILUMINACAO', titulo: 'Iluminação' },
   { valor: 'ESGOTO', titulo: 'Esgoto' }, { valor: 'CALCAMENTO', titulo: 'Calçamento' },
+  { valor: 'OUTRO', titulo: 'Outro' },
 ];
 const gravidades: Opcao<Gravidade>[] = [
   { valor: 'LEVE', titulo: 'Leve' }, { valor: 'MODERADO', titulo: 'Moderado' },

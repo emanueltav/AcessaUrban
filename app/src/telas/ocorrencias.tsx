@@ -22,7 +22,7 @@ const GERAL_INICIAL: ResumoOcorrenciasGeral = {
 
 const CATEGORIAS: Record<string, string> = {
   PAVIMENTACAO: 'Pavimentação', ILUMINACAO: 'Iluminação',
-  ESGOTO: 'Esgoto', CALCAMENTO: 'Calçamento',
+  ESGOTO: 'Esgoto', CALCAMENTO: 'Calçamento', OUTRO: 'Outro',
 };
 const GRAVIDADES: Record<string, string> = { LEVE: 'Leve', MODERADO: 'Moderado', GRAVE: 'Grave' };
 const STATUS: Record<string, string> = {
