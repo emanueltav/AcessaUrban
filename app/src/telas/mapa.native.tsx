@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Camera, Map, Marker, type CameraRef, type MapRef } from '@maplibre/maplibre-react-native';
+import { Camera, Map, Marker, type CameraRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
 
 import type { RootStackParamList } from '../navegacao/rotas';
 import { definirEstilos, Texto as Text, useTema } from '../contextos/tema';
@@ -21,17 +21,21 @@ const SIMBOLOS: Record<OcorrenciaMapa['status'], string> = {
   RESOLVIDA: '✓',
 };
 const CORES_STATUS = { PENDENTE_VALIDACAO: '#666666', ATIVA: '#222222', RESOLVIDA: '#2e7d32' };
+const mercatorY = (latitude: number) => {
+  const rad = Math.max(-85.0511, Math.min(85.0511, latitude)) * Math.PI / 180;
+  return Math.log(Math.tan(Math.PI / 4 + rad / 2)) / (2 * Math.PI);
+};
 
 export default function Mapa() {
   const styles = useEstilos();
   const { modo } = useTema();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const camera = useRef<CameraRef>(null);
-  const mapa = useRef<MapRef>(null);
+  const estadoMapa = useRef<ViewStateChangeEvent | null>(null);
+  const focado = useRef(false);
   const localAtual = useRef<Coordenada | null>(null);
   const acompanhando = useRef(true);
   const dimensoes = useRef({ width: 0, height: 0 });
-  const projecao = useRef(0);
   const ultimaProjecao = useRef(0);
   const [ocorrencias, setOcorrencias] = useState<OcorrenciaMapa[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -40,33 +44,32 @@ export default function Mapa() {
   const [indicador, setIndicador] = useState<Indicador | null>(null);
   const [erroGPS, setErroGPS] = useState('');
 
-  async function atualizarIndicador() {
-    const id = ++projecao.current;
+  function atualizarIndicador() {
     const local = localAtual.current;
+    const estado = estadoMapa.current;
     const { width, height } = dimensoes.current;
-    if (acompanhando.current || !local || !mapa.current || !width || !height)
+    if (!focado.current || acompanhando.current || !local || !estado || !width || !height)
       return setIndicador(null);
 
-    try {
-      const [x, y] = await mapa.current.project(local);
-      if (id !== projecao.current || acompanhando.current) return;
-      if (!Number.isFinite(x) || !Number.isFinite(y) ||
-          (x >= 0 && x <= width && y >= 0 && y <= height)) return setIndicador(null);
-      const dx = x - width / 2, dy = y - height / 2;
-      const tx = dx > 0 ? (width / 2 - 28) / dx : dx < 0 ? (28 - width / 2) / dx : Infinity;
-      const ty = dy > 0 ? (height / 2 - 82) / dy : dy < 0 ? (28 - height / 2) / dy : Infinity;
-      const fator = Math.min(tx, ty);
-      setIndicador({ x: width / 2 + dx * fator - 21, y: height / 2 + dy * fator - 21,
-        angulo: Math.atan2(dy, dx) * 180 / Math.PI });
-    } catch {
-      if (id === projecao.current) setIndicador(null);
-    }
+    const escala = 512 * 2 ** estado.zoom;
+    const leste = (((local[0] - estado.center[0] + 540) % 360) - 180) / 360 * escala;
+    const sul = (mercatorY(estado.center[1]) - mercatorY(local[1])) * escala;
+    const rumo = estado.bearing * Math.PI / 180;
+    const dx = leste * Math.cos(rumo) + sul * Math.sin(rumo);
+    const dy = sul * Math.cos(rumo) - leste * Math.sin(rumo);
+    const x = width / 2 + dx, y = height / 2 + dy;
+    if (!Number.isFinite(x) || !Number.isFinite(y) ||
+        (x >= 0 && x <= width && y >= 0 && y <= height)) return setIndicador(null);
+    const tx = dx > 0 ? (width / 2 - 28) / dx : dx < 0 ? (28 - width / 2) / dx : Infinity;
+    const ty = dy > 0 ? (height / 2 - 82) / dy : dy < 0 ? (28 - height / 2) / dy : Infinity;
+    const fator = Math.min(tx, ty);
+    setIndicador({ x: width / 2 + dx * fator - 21, y: height / 2 + dy * fator - 21,
+      angulo: Math.atan2(dy, dx) * 180 / Math.PI });
   }
 
   function centralizar() {
     if (!localAtual.current) return;
     acompanhando.current = true;
-    projecao.current++;
     setIndicador(null);
     camera.current?.easeTo({ center: localAtual.current, zoom: 15, duration: 650 });
   }
@@ -79,11 +82,12 @@ export default function Mapa() {
     setErroGPS('');
     if (acompanhando.current)
       camera.current?.easeTo({ center: local, zoom: primeira ? 15 : undefined, duration: 600 });
-    else void atualizarIndicador();
+    else atualizarIndicador();
   }
 
   useFocusEffect(useCallback(() => {
     let ativo = true;
+    focado.current = true;
     let assinatura: Location.LocationSubscription | null = null;
 
     async function iniciarGPS() {
@@ -106,7 +110,7 @@ export default function Mapa() {
       }
     }
     void iniciarGPS();
-    return () => { ativo = false; assinatura?.remove(); };
+    return () => { ativo = false; focado.current = false; assinatura?.remove(); };
   }, []));
 
   useFocusEffect(useCallback(() => {
@@ -133,25 +137,30 @@ export default function Mapa() {
 
   return (
     <View style={styles.container}>
-      <Map ref={mapa} style={styles.mapa} mapStyle={ESTILOS_MAPA[modo]}
+      <Map style={styles.mapa} mapStyle={ESTILOS_MAPA[modo]}
         onLayout={({ nativeEvent }) => {
           dimensoes.current = nativeEvent.layout;
-          void atualizarIndicador();
+          atualizarIndicador();
         }}
         onDidFinishLoadingMap={() => {
-          if (acompanhando.current && localAtual.current)
+          if (focado.current && acompanhando.current && localAtual.current)
             camera.current?.jumpTo({ center: localAtual.current, zoom: 15 });
-          else void atualizarIndicador();
+          else atualizarIndicador();
         }}
         onRegionWillChange={({ nativeEvent }) => {
+          estadoMapa.current = nativeEvent;
           if (nativeEvent.userInteraction) acompanhando.current = false;
         }}
-        onRegionIsChanging={() => {
+        onRegionIsChanging={({ nativeEvent }) => {
+          estadoMapa.current = nativeEvent;
           if (acompanhando.current || Date.now() - ultimaProjecao.current < 180) return;
           ultimaProjecao.current = Date.now();
-          void atualizarIndicador();
+          atualizarIndicador();
         }}
-        onRegionDidChange={() => { if (!acompanhando.current) void atualizarIndicador(); }}>
+        onRegionDidChange={({ nativeEvent }) => {
+          estadoMapa.current = nativeEvent;
+          if (!acompanhando.current) atualizarIndicador();
+        }}>
         <Camera ref={camera} initialViewState={{
           center: localAtual.current ?? CENTRO_INICIAL, zoom: localAtual.current ? 15 : 10,
         }} />
