@@ -32,6 +32,37 @@ export type PracaProxima = {
   distanciaMetros: number;
 };
 
+export type PracaMapa = Pick<Praca, 'id' | 'nome' | 'fotos' | 'bairro' | 'media' | 'totalAvaliacoes'> & Coordenadas;
+
+export async function listarPracasMapa(): Promise<PracaMapa[]> {
+  const { data, error } = await supabase.from('pracas')
+    .select(`id, nome, latitude, longitude,
+      bairro:bairros (nome, municipio, uf),
+      fotos:praca_fotos (id, foto_url, ordem),
+      avaliacoes:praca_avaliacoes (nota)`)
+    .eq('status', 'APROVADA')
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null);
+
+  if (error) throw new Error(`Erro ao carregar praças no mapa: ${error.message}`);
+  return (data ?? []).map((item): PracaMapa => {
+    const avaliacoes = Array.isArray(item.avaliacoes) ? item.avaliacoes : [];
+    const bairro = Array.isArray(item.bairro) ? item.bairro[0] ?? null : item.bairro ?? null;
+    return {
+      id: String(item.id), nome: String(item.nome),
+      latitude: Number(item.latitude), longitude: Number(item.longitude),
+      bairro: bairro ? { nome: bairro.nome, municipio: bairro.municipio, uf: bairro.uf } : null,
+      fotos: (item.fotos ?? []).map((foto) => ({
+        id: String(foto.id), foto_url: String(foto.foto_url), ordem: Number(foto.ordem),
+      })).sort((a, b) => a.ordem - b.ordem),
+      media: avaliacoes.length
+        ? avaliacoes.reduce((total, avaliacao) => total + Number(avaliacao.nota), 0) / avaliacoes.length
+        : null,
+      totalAvaliacoes: avaliacoes.length,
+    };
+  }).filter((praca) => Number.isFinite(praca.latitude) && Number.isFinite(praca.longitude));
+}
+
 export async function buscarPracasProximas(local: Coordenadas): Promise<PracaProxima[]> {
   const raio = 80;
   const { minLat, maxLat, minLon, maxLon } = limitesProximidade(local, raio);

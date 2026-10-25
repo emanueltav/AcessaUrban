@@ -1,12 +1,14 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Camera, Map, Marker, type CameraRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
 
 import type { RootStackParamList } from '../navegacao/rotas';
 import { definirEstilos, Texto as Text, useTema } from '../contextos/tema';
-import { listarOcorrenciasMapa, OcorrenciaMapa } from '../servicos/mapa';
+import { useDadosMapa } from '../hooks/useDadosMapa';
+import type { OcorrenciaMapa } from '../servicos/mapa';
+import type { PracaMapa } from '../servicos/pracas';
 
 const ESTILOS_MAPA = {
   claro: 'https://tiles.openfreemap.org/styles/liberty',
@@ -30,6 +32,7 @@ export default function Mapa() {
   const styles = useEstilos();
   const { modo } = useTema();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { ocorrencias, pracas, carregando, erro, erroPracas } = useDadosMapa();
   const camera = useRef<CameraRef>(null);
   const estadoMapa = useRef<ViewStateChangeEvent | null>(null);
   const focado = useRef(false);
@@ -37,9 +40,7 @@ export default function Mapa() {
   const acompanhando = useRef(true);
   const dimensoes = useRef({ width: 0, height: 0 });
   const ultimaProjecao = useRef(0);
-  const [ocorrencias, setOcorrencias] = useState<OcorrenciaMapa[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState('');
+  const [pracaSelecionada, setPracaSelecionada] = useState<PracaMapa | null>(null);
   const [localizacao, setLocalizacao] = useState<Coordenada | null>(null);
   const [indicador, setIndicador] = useState<Indicador | null>(null);
   const [erroGPS, setErroGPS] = useState('');
@@ -113,22 +114,7 @@ export default function Mapa() {
     return () => { ativo = false; focado.current = false; assinatura?.remove(); };
   }, []));
 
-  useFocusEffect(useCallback(() => {
-    let ativo = true;
-    async function carregar() {
-      setCarregando(true);
-      setErro('');
-      try {
-        const dados = await listarOcorrenciasMapa();
-        if (ativo) setOcorrencias(dados);
-      } catch (error) {
-        console.error('Erro ao carregar mapa:', error);
-        if (ativo) setErro('Não foi possível carregar as ocorrências.');
-      } finally { if (ativo) setCarregando(false); }
-    }
-    void carregar();
-    return () => { ativo = false; };
-  }, []));
+  useFocusEffect(useCallback(() => { setPracaSelecionada(null); }, []));
 
   if (carregando || erro) return <View style={styles.centralizado}>
     {carregando && <ActivityIndicator />}
@@ -177,13 +163,38 @@ export default function Mapa() {
             </View>
           </Marker>
         ))}
+        {pracas.map((praca) => <Marker key={praca.id} id={`praca-${praca.id}`}
+          lngLat={[praca.longitude, praca.latitude]} anchor="bottom"
+          onPress={() => setPracaSelecionada(praca)}>
+          <View style={styles.marcadorPraca}><Text style={styles.arvore}>🌳</Text></View>
+        </Marker>)}
       </Map>
       {indicador && <Pressable accessibilityRole="button"
         accessibilityLabel="Voltar à minha localização" onPress={centralizar}
         style={[styles.indicadorBorda, { left: indicador.x, top: indicador.y }]}>
         <Text style={[styles.seta, { transform: [{ rotate: `${indicador.angulo}deg` }] }]}>➤</Text>
       </Pressable>}
-      {!!erroGPS && <Text style={styles.avisoGPS}>{erroGPS}</Text>}
+      {!!(erroGPS || erroPracas) && <Text style={styles.avisoGPS}>{erroGPS || erroPracas}</Text>}
+      {pracaSelecionada && <View style={styles.cartaoPraca}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Fechar informações da praça"
+          style={styles.fecharCartao} onPress={() => setPracaSelecionada(null)}>
+          <Text style={styles.fecharTexto}>✕</Text>
+        </Pressable>
+        <Text style={styles.nomePraca}>{pracaSelecionada.nome}</Text>
+        {pracaSelecionada.bairro && <Text style={styles.bairroPraca}>
+          {pracaSelecionada.bairro.nome} — {pracaSelecionada.bairro.municipio}/{pracaSelecionada.bairro.uf}
+        </Text>}
+        {!!pracaSelecionada.fotos.length && <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.fotosPraca}>
+          {pracaSelecionada.fotos.map((foto) => <Image key={foto.id}
+            source={{ uri: foto.foto_url }} style={styles.fotoPraca} />)}
+        </ScrollView>}
+        <Text style={styles.notaPraca}>{pracaSelecionada.media === null ? 'Ainda sem avaliações'
+          : `★ ${pracaSelecionada.media.toFixed(1)} (${pracaSelecionada.totalAvaliacoes} avaliações)`}</Text>
+        <Pressable onPress={() => navigation.navigate('Pracas')} accessibilityRole="button">
+          <Text style={styles.linkPraca}>Ver praças e avaliações</Text>
+        </Pressable>
+      </View>}
       <Pressable style={styles.explorarPracas} onPress={() => navigation.navigate('Pracas')}
         accessibilityRole="button" accessibilityLabel="Explorar praças">
         <Text style={styles.textoExplorar}>Explorar praças</Text>
@@ -211,4 +222,17 @@ const useEstilos = definirEstilos((c) => StyleSheet.create({
   marcador: { width: 32, height: 32, borderRadius: 16, alignItems: 'center',
     justifyContent: 'center', borderWidth: 2, borderColor: '#ffffff' },
   textoMarcador: { color: '#ffffff', fontWeight: 'bold' },
+  marcadorPraca: { width: 38, height: 38, borderRadius: 12, backgroundColor: c.cartao,
+    borderWidth: 2, borderColor: c.laranja, justifyContent: 'center', alignItems: 'center', elevation: 3 },
+  arvore: { fontSize: 23 },
+  cartaoPraca: { position: 'absolute', bottom: 75, left: 16, right: 16,
+    backgroundColor: c.cartao, borderRadius: 16, padding: 14, gap: 8, elevation: 7 },
+  fecharCartao: { position: 'absolute', right: 12, top: 10, zIndex: 1, padding: 5 },
+  fecharTexto: { fontSize: 16, color: c.secundario },
+  nomePraca: { fontSize: 18, fontWeight: '700', color: c.texto, paddingRight: 30 },
+  bairroPraca: { color: c.secundario, fontSize: 13 },
+  fotosPraca: { gap: 8 },
+  fotoPraca: { width: 135, height: 90, borderRadius: 8 },
+  notaPraca: { color: c.texto, fontWeight: '600' },
+  linkPraca: { color: c.azul, fontWeight: '700', textDecorationLine: 'underline' },
 }));
