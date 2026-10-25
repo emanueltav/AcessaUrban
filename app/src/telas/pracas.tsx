@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import Aviso from '../componentes/aviso';
 import { useAutenticacao } from '../contextos/autenticacao';
 import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
 import { avaliarPraca, buscarPracasProximas, confirmarPraca, listarPracas, Praca, registrarPraca } from '../servicos/pracas';
@@ -34,6 +35,7 @@ export default function Pracas() {
   const [processando, setProcessando] = useState<string | null>(null);
   const [verificando, setVerificando] = useState(false);
   const [mensagem, setMensagem] = useState('');
+  const [duplicidade, setDuplicidade] = useState<string | null>(null);
 
   const carregar = useCallback(async (preservarMensagem = false) => {
     try {
@@ -125,16 +127,9 @@ export default function Pracas() {
 
       const maisProxima = proximas[0];
       const status = maisProxima.status === 'APROVADA' ? 'aprovada' : 'aguardando confirmação';
-      Alert.alert(
-        'Possível praça duplicada',
-        `A praça "${maisProxima.nome}" (${status}) está a aproximadamente ` +
+      setDuplicidade(`A praça "${maisProxima.nome}" (${status}) está a aproximadamente ` +
         `${Math.round(maisProxima.distanciaMetros)} metros deste local.\n\n` +
-        'Pode ser a mesma praça. Deseja cadastrar mesmo assim?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Cadastrar mesmo assim', onPress: () => { void salvarCadastro(); } },
-        ]
-      );
+        'Pode ser a mesma praça. Deseja cadastrar mesmo assim?');
     } catch (erro) {
       setMensagem(erroTexto(erro, 'Não foi possível verificar praças próximas.'));
     } finally { setVerificando(false); }
@@ -171,8 +166,7 @@ export default function Pracas() {
   const aprovadas = pracas.filter((praca) => praca.status === 'APROVADA');
   const ocupado = processando !== null || verificando;
 
-  return <ScrollView contentContainerStyle={styles.container}>
-    <Text style={styles.titulo}>Praças</Text>
+  return <><ScrollView contentContainerStyle={styles.container}>
     {sessao ? <Botao texto={cadastrando ? 'Cancelar cadastro' : 'Cadastrar nova praça'} disabled={ocupado}
       acao={() => { if (cadastrando) limparCadastro(); else setCadastrando(true); setMensagem(''); }} />
       : <Text style={styles.aviso}>Entre na sua conta para cadastrar ou avaliar praças.</Text>}
@@ -237,7 +231,11 @@ export default function Pracas() {
         </>}
       </View>)}
     {!!mensagem && <Text style={styles.mensagem}>{mensagem}</Text>}
-  </ScrollView>;
+  </ScrollView>
+    <Aviso mensagem={duplicidade} titulo="Possível praça duplicada"
+      confirmarTexto="Cadastrar mesmo assim" cancelar={() => setDuplicidade(null)}
+      confirmar={() => { setDuplicidade(null); void salvarCadastro(); }} />
+  </>;
 }
 
 function Botao({ texto, acao, variante = 'principal', disabled = false }: {
@@ -280,7 +278,6 @@ function Estrelas({ valor, onPress, disabled }: {
 const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 20, gap: 16 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  titulo: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   subtitulo: { fontSize: 18, fontWeight: 'bold' },
   bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 10, padding: 14, gap: 8 },
   campo: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 12 },

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import Aviso from '../componentes/aviso';
 import { useAutenticacao } from '../contextos/autenticacao';
 import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
 import { atualizarBairroPerfil, buscarBairros, buscarPerfil } from '../servicos/perfil';
@@ -21,6 +22,7 @@ export default function Conta() {
   const [senha, setSenha] = useState('');
   const [processando, setProcessando] = useState(false);
   const [mensagem, setMensagem] = useState('');
+  const [avisoSaida, setAvisoSaida] = useState(false);
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const [carregandoPerfil, setCarregandoPerfil] = useState(false);
   const [editandoBairro, setEditandoBairro] = useState(false);
@@ -94,17 +96,11 @@ export default function Conta() {
   }
 
   async function sair() {
+    setAvisoSaida(false);
     await executar(async () => {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     }, 'Não foi possível sair da conta.');
-  }
-
-  function confirmarSaida() {
-    Alert.alert('Sair da conta?', 'Deseja realmente encerrar sua sessão no AcessaUrban?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => { void sair(); } },
-    ]);
   }
 
   async function pesquisarBairros() {
@@ -143,9 +139,8 @@ export default function Conta() {
   }
 
   if (sessao) {
-    return (
+    return <>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.titulo}>Minha Conta</Text>
         <Text style={styles.texto}>Você está conectado como:</Text>
         <Text style={styles.email}>{sessao.user.email}</Text>
 
@@ -198,12 +193,16 @@ export default function Conta() {
           </View>
         )}
 
-        <Pressable style={styles.botao} onPress={confirmarSaida} disabled={processando}>
+        <Pressable style={styles.botao} onPress={() => setAvisoSaida(true)} disabled={processando}>
           <Text style={styles.textoBotao}>{processando ? 'Aguarde...' : 'Sair'}</Text>
         </Pressable>
         {mensagem ? <Text style={styles.mensagem}>{mensagem}</Text> : null}
       </ScrollView>
-    );
+      <Aviso titulo="Sair da conta?" mensagem={avisoSaida
+        ? 'Deseja realmente encerrar sua sessão no AcessaUrban?' : null}
+        confirmarTexto="Sair" destrutivo confirmar={() => { void sair(); }}
+        cancelar={() => setAvisoSaida(false)} />
+    </>;
   }
 
   return (

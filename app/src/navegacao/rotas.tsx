@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { DefaultTheme, NavigationContainer, useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 
+import Aviso from '../componentes/aviso';
 import { useAutenticacao } from '../contextos/autenticacao';
 import { definirEstilos, useTema } from '../contextos/tema';
 import { buscarPerfil } from '../servicos/perfil';
@@ -40,6 +41,7 @@ function AbasPrincipais() {
   const { sessao } = useAutenticacao();
   const [acoesAbertas, setAcoesAbertas] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [avisoSaida, setAvisoSaida] = useState<'confirmar' | { erro: string } | null>(null);
   const [aparenciaAberta, setAparenciaAberta] = useState(false);
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const usuarioId = sessao?.user.id;
@@ -66,17 +68,21 @@ function AbasPrincipais() {
 
   function confirmarSaida() {
     setMenuAberto(false);
-    Alert.alert('Sair da conta?', 'Deseja realmente encerrar sua sessão no AcessaUrban?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => {
-        void supabase.auth.signOut().then(({ error }) => {
-          if (error) Alert.alert('Não foi possível sair', error.message);
-        });
-      } },
-    ]);
+    setAvisoSaida('confirmar');
+  }
+
+  async function sair() {
+    setAvisoSaida(null);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) setAvisoSaida({ erro: error.message });
+    } catch {
+      setAvisoSaida({ erro: 'Não foi possível encerrar sua sessão. Tente novamente.' });
+    }
   }
 
   const nomeUsuario = perfil?.nome || sessao?.user.email?.split('@')[0] || 'Visitante';
+  const erroSaida = avisoSaida && typeof avisoSaida === 'object' ? avisoSaida.erro : null;
 
   return <>
     <Tab.Navigator screenOptions={{
@@ -161,6 +167,12 @@ function AbasPrincipais() {
         </View>
       </View>
     </Modal>
+    <Aviso titulo={erroSaida ? 'Não foi possível sair' : 'Sair da conta?'}
+      mensagem={erroSaida ?? (avisoSaida === 'confirmar'
+        ? 'Deseja realmente encerrar sua sessão no AcessaUrban?' : null)}
+      confirmarTexto={erroSaida ? 'Entendi' : 'Sair'} destrutivo={avisoSaida === 'confirmar'}
+      confirmar={() => { if (avisoSaida === 'confirmar') void sair(); else setAvisoSaida(null); }}
+      cancelar={avisoSaida === 'confirmar' ? () => setAvisoSaida(null) : undefined} />
   </>;
 }
 
@@ -173,6 +185,7 @@ export default function Rotas() {
   return <NavigationContainer theme={tema}>
     <StatusBar style={modo === 'escuro' ? 'light' : 'dark'} animated />
     <Stack.Navigator screenOptions={{ headerTitleAlign: 'center',
+      headerTitleStyle: { fontSize: 24, fontWeight: '700' },
       headerStyle: { backgroundColor: cores.fundo }, headerTintColor: cores.texto,
       contentStyle: { backgroundColor: cores.fundo }, }}>
       <Stack.Screen name="Principal" component={AbasPrincipais} options={{ headerShown: false }} />

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAutenticacao } from '../contextos/autenticacao';
+import Aviso from '../componentes/aviso';
 import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
 import { buscarOcorrenciasProximas, registrarOcorrencia } from '../servicos/ocorrencias';
 
@@ -45,6 +46,7 @@ export default function Registro() {
   const [verificando, setVerificando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState('');
+  const [duplicidade, setDuplicidade] = useState<string | null>(null);
   const ocupado = enviando || obtendoLocalizacao || verificando;
 
   function limpar() {
@@ -132,16 +134,9 @@ export default function Registro() {
         ? `\n\nDescrição: ${descricaoExistente.slice(0, 100)}${descricaoExistente.length > 100 ? '…' : ''}`
         : '';
 
-      Alert.alert(
-        'Possível ocorrência duplicada',
-        `Encontramos uma ocorrência ${status} da mesma categoria a aproximadamente ` +
+      setDuplicidade(`Encontramos uma ocorrência ${status} da mesma categoria a aproximadamente ` +
         `${Math.round(maisProxima.distanciaMetros)} metros deste local.${resumo}\n\n` +
-        'Pode ser o mesmo problema. Deseja registrar mesmo assim?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Registrar mesmo assim', onPress: () => { void salvarRegistro(); } },
-        ]
-      );
+        'Pode ser o mesmo problema. Deseja registrar mesmo assim?');
     } catch (erro) {
       setMensagem(erro instanceof Error ? erro.message : 'Não foi possível verificar ocorrências próximas.');
     } finally {
@@ -151,13 +146,11 @@ export default function Registro() {
 
   if (carregando) return <View style={styles.centralizado}><ActivityIndicator /></View>;
   if (!sessao) return <View style={styles.centralizado}>
-    <Text style={styles.titulo}>Registro de Ocorrência</Text>
     <Text style={styles.textoCentralizado}>Entre na sua conta para registrar uma ocorrência.</Text>
     <Text style={styles.textoCentralizado}>Volte ao mapa e abra o menu superior para entrar ou criar uma conta.</Text>
   </View>;
 
-  return <ScrollView contentContainerStyle={styles.container}>
-    <Text style={styles.titulo}>Registro de Ocorrência</Text>
+  return <><ScrollView contentContainerStyle={styles.container}>
     <Text style={styles.rotulo}>1. Fotos do problema</Text>
     <Text style={styles.ajuda}>Adicione de 1 a 3 fotos.</Text>
     {!!fotos.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.listaFotos}>
@@ -201,13 +194,16 @@ export default function Registro() {
       </>}
     </>}
     {!!mensagem && <Text style={styles.mensagem}>{mensagem}</Text>}
-  </ScrollView>;
+  </ScrollView>
+    <Aviso mensagem={duplicidade} titulo="Possível ocorrência duplicada"
+      confirmarTexto="Registrar mesmo assim" cancelar={() => setDuplicidade(null)}
+      confirmar={() => { setDuplicidade(null); void salvarRegistro(); }} />
+  </>;
 }
 
 const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 24 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  titulo: { fontSize: 24, fontWeight: 'bold', marginBottom: 24, textAlign: 'center' },
   rotulo: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, marginTop: 20 },
   ajuda: { marginBottom: 10 },
   listaFotos: { gap: 10, paddingBottom: 4 },

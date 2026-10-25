@@ -351,7 +351,6 @@ function PainelOcorrencias() {
   const tempo = resumoGeral.tempoMedioResolucaoDias;
 
   return <ScrollView contentContainerStyle={styles.container}>
-    <Text style={styles.tituloGeral}>Ocorrências</Text>
     <View style={styles.metricas}>
       <Metrica valor={resumoGeral.ativas} nome="Ativas agora" />
       <Metrica valor={resumoGeral.resolvidasMes} nome="Resolvidas neste mês" />
@@ -423,7 +422,6 @@ const useEstilos = definirEstilos((c) => StyleSheet.create({
   eventoHistorico: { borderTopWidth: 1, borderColor: c.borda, paddingTop: 12, gap: 8 },
   tituloEvento: { fontWeight: 'bold' },
   semFotos: { color: c.secundario },
-  tituloGeral: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   metricas: { flexDirection: 'row', gap: 8 },
   metrica: { flex: 1, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8,
     padding: 10, alignItems: 'center', justifyContent: 'center' },
