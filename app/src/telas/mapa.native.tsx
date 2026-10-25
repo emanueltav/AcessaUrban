@@ -1,13 +1,17 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Camera, Map, Marker, type CameraRef, type MapRef } from '@maplibre/maplibre-react-native';
 
 import type { RootStackParamList } from '../navegacao/rotas';
+import { definirEstilos, Texto as Text, useTema } from '../contextos/tema';
 import { listarOcorrenciasMapa, OcorrenciaMapa } from '../servicos/mapa';
 
-const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
+const ESTILOS_MAPA = {
+  claro: 'https://tiles.openfreemap.org/styles/liberty',
+  escuro: 'https://tiles.openfreemap.org/styles/dark',
+};
 type Coordenada = [number, number];
 type Indicador = { x: number; y: number; angulo: number };
 const CENTRO_INICIAL: Coordenada = [-35.211, -5.7945];
@@ -19,6 +23,8 @@ const SIMBOLOS: Record<OcorrenciaMapa['status'], string> = {
 const CORES_STATUS = { PENDENTE_VALIDACAO: '#666666', ATIVA: '#222222', RESOLVIDA: '#2e7d32' };
 
 export default function Mapa() {
+  const styles = useEstilos();
+  const { modo } = useTema();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const camera = useRef<CameraRef>(null);
   const mapa = useRef<MapRef>(null);
@@ -127,7 +133,7 @@ export default function Mapa() {
 
   return (
     <View style={styles.container}>
-      <Map ref={mapa} style={styles.mapa} mapStyle={ESTILO_MAPA}
+      <Map ref={mapa} style={styles.mapa} mapStyle={ESTILOS_MAPA[modo]}
         onLayout={({ nativeEvent }) => {
           dimensoes.current = nativeEvent.layout;
           void atualizarIndicador();
@@ -177,23 +183,23 @@ export default function Mapa() {
   );
 }
 
-const styles = StyleSheet.create({
+const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { flex: 1 },
   mapa: { flex: 1 },
   localAnel: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFFFFF',
     alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  localCentro: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#F4663A' },
+  localCentro: { width: 18, height: 18, borderRadius: 9, backgroundColor: c.laranja },
   indicadorBorda: { position: 'absolute', width: 42, height: 42, borderRadius: 21,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F2C40', elevation: 4 },
-  seta: { color: '#F4663A', fontSize: 24, fontWeight: 'bold' },
-  avisoGPS: { position: 'absolute', top: 12, alignSelf: 'center', backgroundColor: '#EAE8DB',
-    color: '#333229', padding: 10, borderRadius: 8, fontSize: 12, maxWidth: '85%' },
-  explorarPracas: { position: 'absolute', bottom: 18, right: 16, backgroundColor: '#0F2C40',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: c.botao, elevation: 4 },
+  seta: { color: c.textoBotao, fontSize: 24, fontWeight: 'bold' },
+  avisoGPS: { position: 'absolute', top: 12, alignSelf: 'center', backgroundColor: c.cartao,
+    color: c.texto, padding: 10, borderRadius: 8, fontSize: 12, maxWidth: '85%' },
+  explorarPracas: { position: 'absolute', bottom: 18, right: 16, backgroundColor: c.botao,
     paddingVertical: 12, paddingHorizontal: 18, borderRadius: 24, elevation: 3 },
-  textoExplorar: { color: '#EAE8DB', fontWeight: '700' },
+  textoExplorar: { color: c.textoBotao, fontWeight: '700' },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   mensagem: { textAlign: 'center', marginTop: 12 },
   marcador: { width: 32, height: 32, borderRadius: 16, alignItems: 'center',
     justifyContent: 'center', borderWidth: 2, borderColor: '#ffffff' },
   textoMarcador: { color: '#ffffff', fontWeight: 'bold' },
-});
+}));

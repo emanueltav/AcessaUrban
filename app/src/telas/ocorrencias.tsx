@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { NavigationProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useAutenticacao } from '../contextos/autenticacao';
+import { definirEstilos, Texto as Text } from '../contextos/tema';
 import type { RootStackParamList } from '../navegacao/rotas';
 import { buscarResumoOcorrencias, diasDesde, OcorrenciaResumoGeral, ResumoOcorrenciasGeral } from '../servicos/ocorrencias';
 import {
@@ -52,6 +53,7 @@ type FotoExibicao = Pick<FotoOcorrencia, 'id' | 'foto_url'>;
 function GaleriaFotos({ fotos, estilo, numeracao = false }: {
   fotos: FotoExibicao[]; estilo: 'original' | 'destaque' | 'historico'; numeracao?: boolean;
 }) {
+  const styles = useEstilos();
   const estiloFoto = estilo === 'original' ? styles.foto
     : estilo === 'destaque' ? styles.fotoEvidenciaDestaque : styles.fotoHistorico;
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galeria}>
@@ -64,6 +66,7 @@ function GaleriaFotos({ fotos, estilo, numeracao = false }: {
 }
 
 function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
+  const styles = useEstilos();
   const { sessao } = useAutenticacao();
   const usuarioId = sessao?.user.id ?? null;
   const [ocorrencia, setOcorrencia] = useState<OcorrenciaDetalhe | null>(null);
@@ -290,6 +293,7 @@ function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
 function CartaoOcorrencia({ ocorrencia, onPress }: {
   ocorrencia: OcorrenciaResumoGeral; onPress: () => void;
 }) {
+  const styles = useEstilos();
   const dias = diasDesde(ocorrencia.ativado_em ?? ocorrencia.criado_em);
   return <Pressable style={styles.itemGeral} onPress={onPress}>
     <Text style={styles.nomeItemGeral}>{CATEGORIAS[ocorrencia.categoria] ?? ocorrencia.categoria}</Text>
@@ -304,6 +308,7 @@ function CartaoOcorrencia({ ocorrencia, onPress }: {
 }
 
 function Metrica({ valor, nome }: { valor: number | string; nome: string }) {
+  const styles = useEstilos();
   return <View style={styles.metrica}>
     <Text style={styles.valorMetrica}>{valor}</Text>
     <Text style={styles.nomeMetrica}>{nome}</Text>
@@ -311,6 +316,7 @@ function Metrica({ valor, nome }: { valor: number | string; nome: string }) {
 }
 
 function PainelOcorrencias() {
+  const styles = useEstilos();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [resumoGeral, setResumoGeral] = useState(GERAL_INICIAL);
   const [carregandoGeral, setCarregandoGeral] = useState(true);
@@ -380,7 +386,7 @@ export default function Ocorrencias() {
   return ocorrenciaId ? <DetalheOcorrencia ocorrenciaId={ocorrenciaId} /> : <PainelOcorrencias />;
 }
 
-const styles = StyleSheet.create({
+const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 20, gap: 16 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   galeria: { gap: 10 },
@@ -389,8 +395,8 @@ const styles = StyleSheet.create({
   fotoEvidenciaDestaque: { width: 280, height: 210, borderRadius: 10 },
   fotoHistorico: { width: 160, height: 120, borderRadius: 8 },
   numeroFoto: { textAlign: 'center', marginTop: 4, fontWeight: '600' },
-  bloco: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 10, padding: 16, gap: 8 },
-  blocoPreparacao: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 8, padding: 12, gap: 8 },
+  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 10, padding: 16, gap: 8 },
+  blocoPreparacao: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 12, gap: 8 },
   titulo: { fontSize: 22, fontWeight: 'bold' },
   subtitulo: { fontSize: 18, fontWeight: 'bold' },
   descricao: { marginTop: 8 },
@@ -399,33 +405,33 @@ const styles = StyleSheet.create({
   votoAtual: { marginTop: 4 },
   aviso: { marginTop: 6, textAlign: 'center' },
   acoes: { gap: 8, marginTop: 8 },
-  botaoPrincipal: { backgroundColor: '#222222', borderRadius: 8, padding: 14, marginTop: 8 },
+  botaoPrincipal: { backgroundColor: c.botao, borderRadius: 8, padding: 14, marginTop: 8 },
   botaoDesabilitado: { opacity: 0.5 },
-  textoBotaoPrincipal: { color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
-  botaoVoto: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12 },
-  botaoVotoSelecionado: { backgroundColor: '#222222' },
+  textoBotaoPrincipal: { color: c.textoBotao, fontWeight: 'bold', textAlign: 'center' },
+  botaoVoto: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12 },
+  botaoVotoSelecionado: { backgroundColor: c.botao },
   textoBotaoVoto: { fontWeight: 'bold', textAlign: 'center' },
-  textoBotaoVotoSelecionado: { color: '#ffffff' },
-  botaoSecundario: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12, marginTop: 8 },
+  textoBotaoVotoSelecionado: { color: c.textoBotao },
+  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12, marginTop: 8 },
   textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
   carregandoVoto: { marginTop: 6 },
-  botaoRemover: { borderWidth: 1, borderColor: '#b00020', borderRadius: 8, padding: 8, marginTop: 6 },
-  textoRemover: { color: '#b00020', fontWeight: 'bold', textAlign: 'center' },
+  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 8, marginTop: 6 },
+  textoRemover: { color: c.perigo, fontWeight: 'bold', textAlign: 'center' },
   mensagem: { marginTop: 8, textAlign: 'center' },
-  linkHistorico: { color: '#222222', fontWeight: 'bold', textDecorationLine: 'underline' },
+  linkHistorico: { color: c.azul, fontWeight: 'bold', textDecorationLine: 'underline' },
   historico: { gap: 12 },
-  eventoHistorico: { borderTopWidth: 1, borderColor: '#eeeeee', paddingTop: 12, gap: 8 },
+  eventoHistorico: { borderTopWidth: 1, borderColor: c.borda, paddingTop: 12, gap: 8 },
   tituloEvento: { fontWeight: 'bold' },
-  semFotos: { color: '#666666' },
+  semFotos: { color: c.secundario },
   tituloGeral: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   metricas: { flexDirection: 'row', gap: 8 },
-  metrica: { flex: 1, borderWidth: 1, borderColor: '#dddddd', borderRadius: 8,
+  metrica: { flex: 1, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8,
     padding: 10, alignItems: 'center', justifyContent: 'center' },
   valorMetrica: { fontSize: 21, fontWeight: 'bold' },
   nomeMetrica: { fontSize: 11, textAlign: 'center' },
-  itemGeral: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 8, padding: 12, gap: 4 },
+  itemGeral: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8, padding: 12, gap: 4 },
   nomeItemGeral: { fontSize: 16, fontWeight: 'bold' },
-  botaoAnteriores: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12 },
+  botaoAnteriores: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12 },
   textoBotaoAnteriores: { fontWeight: 'bold', textAlign: 'center' },
   listaAnteriores: { gap: 12 },
-});
+}));

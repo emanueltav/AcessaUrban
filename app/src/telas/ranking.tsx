@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAutenticacao } from '../contextos/autenticacao';
+import { definirEstilos, Texto as Text } from '../contextos/tema';
 import { buscarPerfil } from '../servicos/perfil';
 import { supabase } from '../servicos/supabase';
 
@@ -25,6 +26,7 @@ function adicionarPosicoes(bairros: Omit<Bairro, 'posicao'>[]): Bairro[] {
 }
 
 export default function Ranking() {
+  const styles = useEstilos();
   const usuarioId = useAutenticacao().sessao?.user.id ?? null;
   const [bairros, setBairros] = useState<Bairro[]>([]);
   const [bairroUsuarioId, setBairroUsuarioId] = useState<string | null>(null);
@@ -112,13 +114,13 @@ export default function Ranking() {
   );
 }
 
-const styles = StyleSheet.create({
+const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { flex: 1, padding: 24 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   titulo: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
   lista: { gap: 8, paddingBottom: 24 },
-  item: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#dddddd', borderRadius: 8, padding: 12 },
-  itemMeuBairro: { borderColor: '#222222', backgroundColor: '#f3f3f3' },
+  item: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8, padding: 12 },
+  itemMeuBairro: { borderColor: c.laranja, backgroundColor: c.cartao },
   posicao: { width: 45 },
   textoPosicao: { fontSize: 16, fontWeight: 'bold' },
   informacoes: { flex: 1 },
@@ -127,4 +129,4 @@ const styles = StyleSheet.create({
   textoMeuBairro: { marginTop: 2, fontSize: 12, fontWeight: '600' },
   nota: { fontSize: 18, fontWeight: 'bold' },
   mensagem: { textAlign: 'center', marginTop: 12 },
-});
+}));

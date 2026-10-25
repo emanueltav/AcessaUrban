@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAutenticacao } from '../contextos/autenticacao';
+import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
 import { atualizarBairroPerfil, buscarBairros, buscarPerfil } from '../servicos/perfil';
 import type { BairroPerfil, PerfilUsuario } from '../servicos/perfil';
 import { supabase } from '../servicos/supabase';
@@ -11,6 +12,7 @@ function mensagemErro(erro: unknown, alternativa: string) {
 }
 
 export default function Conta() {
+  const styles = useEstilos();
   const { sessao, carregando } = useAutenticacao();
   const usuarioId = sessao?.user.id ?? null;
   const [cadastro, setCadastro] = useState(false);
@@ -237,17 +239,17 @@ export default function Conta() {
   );
 }
 
-const styles = StyleSheet.create({
+const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 24, gap: 16 },
   centralizado: { flex: 1, justifyContent: 'center', padding: 24 },
   formulario: { width: '100%' },
   titulo: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   subtitulo: { fontSize: 18, fontWeight: 'bold' },
-  bloco: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 10, padding: 16, gap: 10 },
-  campo: { borderWidth: 1, borderColor: '#cccccc', borderRadius: 8, padding: 12 },
-  botao: { backgroundColor: '#222222', borderRadius: 8, padding: 14, marginTop: 4 },
-  botaoSecundario: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12 },
-  textoBotao: { color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
+  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 10, padding: 16, gap: 10 },
+  campo: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 12 },
+  botao: { backgroundColor: c.botao, borderRadius: 8, padding: 14, marginTop: 4 },
+  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12 },
+  textoBotao: { color: c.textoBotao, fontWeight: 'bold', textAlign: 'center' },
   textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
   link: { textAlign: 'center', textDecorationLine: 'underline' },
   texto: { textAlign: 'center' },
@@ -255,10 +257,10 @@ const styles = StyleSheet.create({
   rotulo: { fontWeight: 'bold', marginTop: 4 },
   bairroAtual: { fontWeight: '600' },
   selecaoBairro: { gap: 8, marginTop: 8 },
-  opcaoBairro: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 8, padding: 10 },
-  opcaoBairroAtual: { borderColor: '#222222' },
+  opcaoBairro: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 10 },
+  opcaoBairroAtual: { borderColor: c.botao },
   nomeBairro: { fontWeight: 'bold' },
-  botaoRemover: { borderWidth: 1, borderColor: '#b00020', borderRadius: 8, padding: 10, marginTop: 8 },
-  textoRemover: { color: '#b00020', fontWeight: 'bold', textAlign: 'center' },
+  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 10, marginTop: 8 },
+  textoRemover: { color: c.perigo, fontWeight: 'bold', textAlign: 'center' },
   mensagem: { textAlign: 'center', marginTop: 8 },
-});
+}));

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAutenticacao } from '../contextos/autenticacao';
+import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
 import { buscarOcorrenciasProximas, registrarOcorrencia } from '../servicos/ocorrencias';
 
 type Categoria = 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO' | 'OUTRO';
@@ -23,6 +24,7 @@ const gravidades: Opcao<Gravidade>[] = [
 function Opcoes<T extends string>({ itens, valor, selecionar, disabled }: {
   itens: Opcao<T>[]; valor: T | null; selecionar: (valor: T) => void; disabled: boolean;
 }) {
+  const styles = useEstilos();
   return <View style={styles.opcoes}>{itens.map((item) => (
     <Pressable key={item.valor} disabled={disabled} onPress={() => selecionar(item.valor)}
       style={[styles.opcao, valor === item.valor && styles.opcaoSelecionada]}>
@@ -32,6 +34,7 @@ function Opcoes<T extends string>({ itens, valor, selecionar, disabled }: {
 }
 
 export default function Registro() {
+  const styles = useEstilos();
   const { sessao, carregando } = useAutenticacao();
   const [fotos, setFotos] = useState<string[]>([]);
   const [local, setLocal] = useState<Coordenadas | null>(null);
@@ -201,7 +204,7 @@ export default function Registro() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 24 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   titulo: { fontSize: 24, fontWeight: 'bold', marginBottom: 24, textAlign: 'center' },
@@ -211,22 +214,22 @@ const styles = StyleSheet.create({
   cartaoFoto: { width: 220 },
   foto: { width: 220, height: 165, borderRadius: 8 },
   numeroFoto: { textAlign: 'center', marginTop: 4, fontWeight: '600' },
-  botaoRemoverFoto: { borderWidth: 1, borderColor: '#b00020', borderRadius: 8, padding: 8, marginTop: 6 },
-  textoPerigo: { color: '#b00020', fontWeight: 'bold', textAlign: 'center' },
+  botaoRemoverFoto: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 8, marginTop: 6 },
+  textoPerigo: { color: c.perigo, fontWeight: 'bold', textAlign: 'center' },
   limiteFotos: { textAlign: 'center', marginTop: 12 },
-  status: { gap: 8, padding: 12, borderWidth: 1, borderColor: '#dddddd', borderRadius: 8 },
+  status: { gap: 8, padding: 12, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8 },
   opcoes: { gap: 8 },
-  opcao: { borderWidth: 1, borderColor: '#cccccc', borderRadius: 8, padding: 12 },
-  opcaoSelecionada: { backgroundColor: '#222222', borderColor: '#222222' },
+  opcao: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8, padding: 12 },
+  opcaoSelecionada: { backgroundColor: c.botao, borderColor: c.botao },
   textoOpcao: { textAlign: 'center' },
-  textoOpcaoSelecionada: { color: '#ffffff', fontWeight: 'bold' },
-  descricao: { minHeight: 100, borderWidth: 1, borderColor: '#cccccc', borderRadius: 8, padding: 12, textAlignVertical: 'top' },
+  textoOpcaoSelecionada: { color: c.textoBotao, fontWeight: 'bold' },
+  descricao: { minHeight: 100, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, color: c.texto, borderRadius: 8, padding: 12, textAlignVertical: 'top' },
   contador: { textAlign: 'right', marginTop: 4 },
-  botao: { backgroundColor: '#222222', borderRadius: 8, padding: 14, marginTop: 20 },
-  botaoSecundario: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12, marginTop: 8 },
-  textoBotao: { color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
+  botao: { backgroundColor: c.botao, borderRadius: 8, padding: 14, marginTop: 20 },
+  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12, marginTop: 8 },
+  textoBotao: { color: c.textoBotao, fontWeight: 'bold', textAlign: 'center' },
   textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
-  botaoCancelar: { borderWidth: 1, borderColor: '#b00020', borderRadius: 8, padding: 12, marginTop: 8 },
+  botaoCancelar: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 12, marginTop: 8 },
   mensagem: { textAlign: 'center', marginTop: 16 },
   textoCentralizado: { textAlign: 'center', marginBottom: 8 },
-});
+}));

@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import type { RootStackParamList } from '../navegacao/rotas';
+import { definirEstilos, Texto as Text } from '../contextos/tema';
 import { listarOcorrenciasMapa, OcorrenciaMapa } from '../servicos/mapa';
 
 const TITULOS: Record<OcorrenciaMapa['status'], string> = {
@@ -12,6 +13,7 @@ const TITULOS: Record<OcorrenciaMapa['status'], string> = {
 };
 
 export default function Mapa() {
+  const styles = useEstilos();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [ocorrencias, setOcorrencias] = useState<OcorrenciaMapa[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -89,11 +91,11 @@ export default function Mapa() {
   );
 }
 
-const styles = StyleSheet.create({
+const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { flex: 1, padding: 24 },
-  explorarPracas: { alignSelf: 'flex-start', backgroundColor: '#0F2C40',
+  explorarPracas: { alignSelf: 'flex-start', backgroundColor: c.botao,
     paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, marginBottom: 20 },
-  textoExplorar: { color: '#EAE8DB', fontWeight: '700' },
+  textoExplorar: { color: c.textoBotao, fontWeight: '700' },
   centralizado: {
     flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24,
   },
@@ -103,9 +105,9 @@ const styles = StyleSheet.create({
   aviso: { textAlign: 'center', marginBottom: 20 },
   lista: { gap: 8, paddingBottom: 24 },
   item: {
-    borderWidth: 1, borderColor: '#dddddd', borderRadius: 8, padding: 12,
+    borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8, padding: 12,
   },
   nome: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   descricao: { marginTop: 6 },
   mensagem: { textAlign: 'center', marginTop: 12 },
-});
+}));

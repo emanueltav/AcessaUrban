@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAutenticacao } from '../contextos/autenticacao';
+import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
 import { avaliarPraca, buscarPracasProximas, confirmarPraca, listarPracas, Praca, registrarPraca } from '../servicos/pracas';
 
 type Localizacao = { latitude: number; longitude: number };
@@ -17,6 +18,7 @@ function bonusPraca(praca: Praca) {
 }
 
 export default function Pracas() {
+  const styles = useEstilos();
   const route = useRoute();
   const abrirCadastro = (route.params as { abrirCadastro?: boolean } | undefined)?.abrirCadastro;
   const { sessao } = useAutenticacao();
@@ -241,6 +243,7 @@ export default function Pracas() {
 function Botao({ texto, acao, variante = 'principal', disabled = false }: {
   texto: string; acao: () => void; variante?: Variante; disabled?: boolean;
 }) {
+  const styles = useEstilos();
   const estiloBotao = variante === 'principal' ? styles.botaoPrincipal
     : variante === 'remover' ? styles.botaoRemover : styles.botaoSecundario;
   const estiloTexto = variante === 'principal' ? styles.textoBotaoPrincipal
@@ -251,6 +254,7 @@ function Botao({ texto, acao, variante = 'principal', disabled = false }: {
 }
 
 function ResumoPraca({ praca }: { praca: Praca }) {
+  const styles = useEstilos();
   return <>
     {!!praca.fotos.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galeria}>
       {praca.fotos.map((foto, i) => <View key={foto.id} style={styles.cartaoFoto}>
@@ -266,30 +270,31 @@ function ResumoPraca({ praca }: { praca: Praca }) {
 function Estrelas({ valor, onPress, disabled }: {
   valor: number; onPress: (nota: number) => void; disabled: boolean;
 }) {
+  const styles = useEstilos();
   return <View style={styles.estrelas}>{[1, 2, 3, 4, 5].map((nota) =>
     <Pressable key={nota} onPress={() => onPress(nota)} disabled={disabled}>
       <Text style={styles.estrela}>{nota <= valor ? '★' : '☆'}</Text>
     </Pressable>)}</View>;
 }
 
-const styles = StyleSheet.create({
+const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 20, gap: 16 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   titulo: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   subtitulo: { fontSize: 18, fontWeight: 'bold' },
-  bloco: { borderWidth: 1, borderColor: '#dddddd', borderRadius: 10, padding: 14, gap: 8 },
-  campo: { borderWidth: 1, borderColor: '#cccccc', borderRadius: 8, padding: 12 },
+  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 10, padding: 14, gap: 8 },
+  campo: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 12 },
   galeria: { gap: 10 }, cartaoFoto: { width: 240 },
   foto: { width: 240, height: 180, borderRadius: 8 },
   numeroFoto: { textAlign: 'center', marginTop: 4, fontWeight: '600' },
-  statusLocalizacao: { gap: 8, padding: 12, borderWidth: 1, borderColor: '#dddddd', borderRadius: 8 },
-  botaoPrincipal: { backgroundColor: '#222222', borderRadius: 8, padding: 14 },
-  textoBotaoPrincipal: { color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
-  botaoSecundario: { borderWidth: 1, borderColor: '#222222', borderRadius: 8, padding: 12 },
+  statusLocalizacao: { gap: 8, padding: 12, borderWidth: 1, borderColor: c.borda, borderRadius: 8 },
+  botaoPrincipal: { backgroundColor: c.botao, borderRadius: 8, padding: 14 },
+  textoBotaoPrincipal: { color: c.textoBotao, fontWeight: 'bold', textAlign: 'center' },
+  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12 },
   textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
-  botaoRemover: { borderWidth: 1, borderColor: '#b00020', borderRadius: 8, padding: 8 },
-  textoRemover: { color: '#b00020', fontWeight: 'bold', textAlign: 'center' },
+  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 8 },
+  textoRemover: { color: c.perigo, fontWeight: 'bold', textAlign: 'center' },
   media: { fontSize: 17, fontWeight: 'bold' }, bonus: { fontWeight: '600' },
   estrelas: { flexDirection: 'row', gap: 8 }, estrela: { fontSize: 32 },
   aviso: { textAlign: 'center' }, mensagem: { textAlign: 'center' },
-});
+}));
