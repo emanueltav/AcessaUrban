@@ -11,9 +11,13 @@ type Bairro = {
   nome: string;
   municipio: string;
   uf: string;
+  nota_base: number;
+  bonus_pracas: number;
   nota_atual: number;
   posicao: number;
 };
+
+const formatarNota = (nota: number) => nota.toFixed(2).replace('.', ',');
 
 function adicionarPosicoes(bairros: Omit<Bairro, 'posicao'>[]): Bairro[] {
   let posicao = 1;
@@ -41,7 +45,7 @@ export default function Ranking() {
       setErro('');
       try {
         const { data, error } = await supabase.from('bairros')
-          .select('id, nome, municipio, uf, nota_atual')
+          .select('id, nome, municipio, uf, nota_base, bonus_pracas, nota_atual')
           .order('nota_atual', { ascending: false })
           .order('municipio', { ascending: true })
           .order('nome', { ascending: true });
@@ -54,6 +58,8 @@ export default function Ranking() {
           nome: String(bairro.nome),
           municipio: String(bairro.municipio),
           uf: String(bairro.uf),
+          nota_base: Number(bairro.nota_base),
+          bonus_pracas: Number(bairro.bonus_pracas),
           nota_atual: Number(bairro.nota_atual),
         }))));
 
@@ -88,6 +94,7 @@ export default function Ranking() {
   return (
     <View style={styles.container}>
       <Text style={styles.titulo}>Ranking de Bairros</Text>
+      <Text style={styles.explicacao}>A nota final considera ocorrências e bônus das praças, até 5 pontos.</Text>
       <FlatList
         data={bairros}
         keyExtractor={(bairro) => bairro.id}
@@ -103,9 +110,13 @@ export default function Ranking() {
               <View style={styles.informacoes}>
                 <Text style={styles.nome}>{meuBairro ? '🏠 ' : ''}{item.nome}</Text>
                 <Text style={styles.local}>{item.municipio}/{item.uf}</Text>
+                <Text style={styles.detalheNota}>Base {formatarNota(item.nota_base)} · Praças +{formatarNota(item.bonus_pracas)}</Text>
                 {meuBairro && <Text style={styles.textoMeuBairro}>Meu bairro</Text>}
               </View>
-              <Text style={styles.nota}>{item.nota_atual.toFixed(1)}</Text>
+              <View style={styles.notaFinal}>
+                <Text style={styles.nota}>{formatarNota(item.nota_atual)}</Text>
+                <Text style={styles.legendaNota}>Nota final</Text>
+              </View>
             </View>
           );
         }}
@@ -117,16 +128,21 @@ export default function Ranking() {
 const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { flex: 1, padding: 24 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  titulo: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
-  lista: { gap: 8, paddingBottom: 24 },
-  item: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8, padding: 12 },
-  itemMeuBairro: { borderColor: c.laranja, backgroundColor: c.cartao },
+  titulo: { fontSize: 24, fontWeight: 'bold', color: c.azul, textAlign: 'center', marginBottom: 6 },
+  explicacao: { color: c.secundario, fontSize: 13, textAlign: 'center', marginBottom: 16 },
+  lista: { gap: 10, paddingBottom: 24 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1,
+    borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 16, padding: 14 },
+  itemMeuBairro: { borderColor: c.laranja, borderWidth: 2 },
   posicao: { width: 45 },
-  textoPosicao: { fontSize: 16, fontWeight: 'bold' },
+  textoPosicao: { fontSize: 18, fontWeight: 'bold', color: c.laranja },
   informacoes: { flex: 1 },
-  nome: { fontSize: 16, fontWeight: 'bold' },
-  local: { marginTop: 2 },
-  textoMeuBairro: { marginTop: 2, fontSize: 12, fontWeight: '600' },
-  nota: { fontSize: 18, fontWeight: 'bold' },
+  nome: { fontSize: 17, fontWeight: 'bold', color: c.azul },
+  local: { color: c.secundario, fontSize: 12, marginTop: 3 },
+  detalheNota: { color: c.secundario, fontSize: 12, marginTop: 8 },
+  textoMeuBairro: { color: c.laranja, marginTop: 4, fontSize: 12, fontWeight: '700' },
+  notaFinal: { alignItems: 'center' },
+  nota: { color: c.laranja, fontSize: 20, fontWeight: 'bold' },
+  legendaNota: { color: c.secundario, fontSize: 11 },
   mensagem: { textAlign: 'center', marginTop: 12 },
 }));

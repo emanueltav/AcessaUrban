@@ -12,7 +12,7 @@ import type { PracaMapa } from '../servicos/pracas';
 
 const ESTILOS_MAPA = {
   claro: 'https://tiles.openfreemap.org/styles/liberty',
-  escuro: 'https://tiles.openfreemap.org/styles/dark',
+  escuro: 'https://tiles.openfreemap.org/styles/liberty',
 };
 type Coordenada = [number, number];
 type Indicador = { x: number; y: number; angulo: number };
