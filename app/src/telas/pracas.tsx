@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import Aviso from '../componentes/aviso';
 import { useAutenticacao } from '../contextos/autenticacao';
 import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
-import { avaliarPraca, buscarPracasProximas, confirmarPraca, listarPracas, Praca, registrarPraca } from '../servicos/pracas';
+import { avaliarPraca, buscarPracasProximas, confirmarPraca, excluirPracaPendente, listarPracas, Praca, registrarPraca } from '../servicos/pracas';
 
 type Localizacao = { latitude: number; longitude: number };
 type Variante = 'principal' | 'secundario' | 'remover';
@@ -36,6 +36,7 @@ export default function Pracas() {
   const [verificando, setVerificando] = useState(false);
   const [mensagem, setMensagem] = useState('');
   const [duplicidade, setDuplicidade] = useState<string | null>(null);
+  const [pracaExclusao, setPracaExclusao] = useState<Praca | null>(null);
 
   const carregar = useCallback(async (preservarMensagem = false) => {
     try {
@@ -158,6 +159,16 @@ export default function Pracas() {
     }, 'Não foi possível registrar sua avaliação.');
   }
 
+  function excluir() {
+    if (!pracaExclusao) return;
+    const id = pracaExclusao.id;
+    setPracaExclusao(null);
+    void executar(id, async () => {
+      await excluirPracaPendente(id);
+      return 'Praça excluída com sucesso.';
+    }, 'Não foi possível excluir a praça.');
+  }
+
   if (carregando) return <View style={styles.centralizado}>
     <ActivityIndicator /><Text style={styles.mensagem}>Carregando praças...</Text>
   </View>;
@@ -215,6 +226,9 @@ export default function Pracas() {
             <Botao texto={processando === praca.id ? 'Confirmando...' : 'Confirmar praça'}
               acao={() => confirmar(praca)} disabled={ocupado} />
           </>}
+        {usuarioId === praca.usuario_id && praca.confirmacoes === 0 &&
+          <Botao variante="remover" texto="Excluir praça" disabled={ocupado}
+            acao={() => setPracaExclusao(praca)} />}
       </View>)}
     </>}
 
@@ -235,6 +249,9 @@ export default function Pracas() {
     <Aviso mensagem={duplicidade} titulo="Possível praça duplicada"
       confirmarTexto="Cadastrar mesmo assim" cancelar={() => setDuplicidade(null)}
       confirmar={() => { setDuplicidade(null); void salvarCadastro(); }} />
+    <Aviso mensagem={pracaExclusao ? `A praça "${pracaExclusao.nome}" e suas fotos serão excluídas definitivamente.` : null}
+      titulo="Excluir praça?" confirmarTexto="Excluir" destrutivo
+      cancelar={() => setPracaExclusao(null)} confirmar={excluir} />
   </>;
 }
 

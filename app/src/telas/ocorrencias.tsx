@@ -3,9 +3,10 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } fro
 import * as ImagePicker from 'expo-image-picker';
 import { NavigationProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useAutenticacao } from '../contextos/autenticacao';
+import Aviso from '../componentes/aviso';
 import { definirEstilos, Texto as Text } from '../contextos/tema';
 import type { RootStackParamList } from '../navegacao/rotas';
-import { buscarResumoOcorrencias, diasDesde, OcorrenciaResumoGeral, ResumoOcorrenciasGeral } from '../servicos/ocorrencias';
+import { buscarResumoOcorrencias, diasDesde, excluirOcorrenciaPendente, OcorrenciaResumoGeral, ResumoOcorrenciasGeral } from '../servicos/ocorrencias';
 import {
   buscarHistoricoOcorrencia, buscarOcorrencia, buscarResumoValidacoes, confirmarProblema,
   EventoValidacao, FotoOcorrencia, OcorrenciaDetalhe, ResumoValidacoes, votarResolucao, VotoResolucao,
@@ -67,6 +68,7 @@ function GaleriaFotos({ fotos, estilo, numeracao = false }: {
 
 function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
   const styles = useEstilos();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { sessao } = useAutenticacao();
   const usuarioId = sessao?.user.id ?? null;
   const [ocorrencia, setOcorrencia] = useState<OcorrenciaDetalhe | null>(null);
@@ -79,6 +81,8 @@ function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
   const [enviandoVoto, setEnviandoVoto] = useState(false);
   const [erro, setErro] = useState('');
   const [mensagem, setMensagem] = useState('');
+  const [avisoExclusao, setAvisoExclusao] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
 
   const carregarDados = useCallback(async () => {
     try {
@@ -153,6 +157,20 @@ function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
     }
   }
 
+  async function excluir() {
+    if (excluindo) return;
+    setAvisoExclusao(false);
+    setExcluindo(true);
+    try {
+      await excluirOcorrenciaPendente(ocorrenciaId);
+      navigation.goBack();
+    } catch (error) {
+      setMensagem(error instanceof Error ? error.message : 'Não foi possível excluir a ocorrência.');
+    } finally {
+      setExcluindo(false);
+    }
+  }
+
   if (carregando || erro || !ocorrencia) return <View style={styles.centralizado}>
     {carregando && <ActivityIndicator />}
     <Text style={styles.mensagem}>
@@ -186,6 +204,11 @@ function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
       {resolvida && ocorrencia.resolvido_em &&
         <Text style={styles.dataStatus}>Resolvida em {formatarData(ocorrencia.resolvido_em)}</Text>}
     </View>
+
+    {ehAutor && pendente && resumo.confirmacoes === 0 && <Pressable
+      style={styles.botaoRemover} disabled={excluindo} onPress={() => setAvisoExclusao(true)}>
+      <Text style={styles.textoRemover}>{excluindo ? 'Excluindo...' : 'Excluir ocorrência'}</Text>
+    </Pressable>}
 
     {resolvida && evidenciaResolucao && <View style={styles.bloco}>
       <Text style={styles.subtitulo}>Evidência da resolução</Text>
@@ -289,6 +312,10 @@ function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
         </View>)}
       </View>}
     </View>}
+    <Aviso titulo="Excluir ocorrência?" mensagem={avisoExclusao
+      ? 'Esta ocorrência e suas fotos serão excluídas definitivamente.' : null}
+      confirmarTexto="Excluir" destrutivo confirmar={() => { void excluir(); }}
+      cancelar={() => setAvisoExclusao(false)} />
   </ScrollView>;
 }
 

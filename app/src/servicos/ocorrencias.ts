@@ -172,3 +172,11 @@ export async function registrarOcorrencia(dados: NovaOcorrencia): Promise<string
     throw error;
   }
 }
+
+export async function excluirOcorrenciaPendente(id: string): Promise<void> {
+  const { data, error } = await supabase.rpc('excluir_ocorrencia_pendente', {
+    p_ocorrencia_id: id,
+  });
+  if (error) throw new Error(error.message);
+  await removerFotosStorage(Array.isArray(data) ? data : []);
+}

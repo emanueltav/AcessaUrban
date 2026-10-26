@@ -752,3 +752,56 @@ TO authenticated;
 GRANT EXECUTE
 ON FUNCTION public.avaliar_praca(UUID, SMALLINT)
 TO authenticated;
+
+
+-- O autor pode excluir uma praça pendente antes de qualquer confirmação.
+CREATE OR REPLACE FUNCTION public.excluir_praca_pendente(p_praca_id UUID)
+RETURNS TEXT[]
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_autor UUID;
+    v_status TEXT;
+    v_caminhos TEXT[];
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Usuario nao autenticado';
+    END IF;
+
+    SELECT usuario_id, status INTO v_autor, v_status
+    FROM public.pracas
+    WHERE id = p_praca_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Praca nao encontrada';
+    END IF;
+    IF v_autor IS DISTINCT FROM auth.uid() THEN
+        RAISE EXCEPTION 'Somente o autor pode excluir esta praca';
+    END IF;
+    IF v_status <> 'PENDENTE'
+       OR EXISTS (
+           SELECT 1 FROM public.praca_confirmacoes
+           WHERE praca_id = p_praca_id
+       )
+       OR EXISTS (
+           SELECT 1 FROM public.praca_avaliacoes
+           WHERE praca_id = p_praca_id
+       ) THEN
+        RAISE EXCEPTION 'Nao e possivel excluir uma praca ja confirmada';
+    END IF;
+
+    SELECT COALESCE(array_agg(caminho_storage), ARRAY[]::TEXT[])
+    INTO v_caminhos
+    FROM public.praca_fotos
+    WHERE praca_id = p_praca_id;
+
+    DELETE FROM public.pracas WHERE id = p_praca_id;
+    RETURN v_caminhos;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.excluir_praca_pendente(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.excluir_praca_pendente(UUID) TO authenticated;

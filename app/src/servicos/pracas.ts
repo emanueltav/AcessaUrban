@@ -201,3 +201,11 @@ export async function avaliarPraca(pracaId: string, nota: number): Promise<void>
 
   if (error) throw new Error(`Erro ao avaliar praça: ${error.message}`);
 }
+
+export async function excluirPracaPendente(id: string): Promise<void> {
+  const { data, error } = await supabase.rpc('excluir_praca_pendente', {
+    p_praca_id: id,
+  });
+  if (error) throw new Error(error.message);
+  await removerFotosStorage(Array.isArray(data) ? data : []);
+}

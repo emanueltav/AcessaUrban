@@ -215,3 +215,52 @@ ON FUNCTION public.registrar_ocorrencia_com_fotos(
     TEXT[]
 )
 TO authenticated;
+
+
+-- O autor pode excluir uma ocorrência pendente antes de qualquer validação.
+CREATE OR REPLACE FUNCTION public.excluir_ocorrencia_pendente(p_ocorrencia_id UUID)
+RETURNS TEXT[]
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_autor UUID;
+    v_status TEXT;
+    v_caminhos TEXT[];
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Usuario nao autenticado';
+    END IF;
+
+    SELECT usuario_id, status INTO v_autor, v_status
+    FROM public.ocorrencias
+    WHERE id = p_ocorrencia_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Ocorrencia nao encontrada';
+    END IF;
+    IF v_autor IS DISTINCT FROM auth.uid() THEN
+        RAISE EXCEPTION 'Somente o autor pode excluir esta ocorrencia';
+    END IF;
+    IF v_status <> 'PENDENTE_VALIDACAO'
+       OR EXISTS (
+           SELECT 1 FROM public.validacoes_ocorrencia
+           WHERE ocorrencia_id = p_ocorrencia_id
+       ) THEN
+        RAISE EXCEPTION 'Nao e possivel excluir uma ocorrencia ja validada';
+    END IF;
+
+    SELECT COALESCE(array_agg(caminho_storage), ARRAY[]::TEXT[])
+    INTO v_caminhos
+    FROM public.ocorrencia_fotos
+    WHERE ocorrencia_id = p_ocorrencia_id;
+
+    DELETE FROM public.ocorrencias WHERE id = p_ocorrencia_id;
+    RETURN v_caminhos;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.excluir_ocorrencia_pendente(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.excluir_ocorrencia_pendente(UUID) TO authenticated;
