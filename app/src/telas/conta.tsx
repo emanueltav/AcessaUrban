@@ -139,16 +139,20 @@ export default function Conta() {
   }
 
   if (sessao) {
+    const nomeExibicao = perfil?.nome || sessao.user.email?.split('@')[0] || 'Usuário';
     return <>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.texto}>Você está conectado como:</Text>
-        <Text style={styles.email}>{sessao.user.email}</Text>
+        <View style={styles.identidade}>
+          <View style={styles.avatar}><Text style={styles.inicial}>{nomeExibicao[0].toUpperCase()}</Text></View>
+          <View style={styles.dadosConta}>
+            <Text style={styles.nomePerfil}>{nomeExibicao}</Text>
+            <Text style={styles.email}>{sessao.user.email}</Text>
+          </View>
+        </View>
 
         {carregandoPerfil ? <ActivityIndicator /> : (
           <View style={styles.bloco}>
-            <Text style={styles.subtitulo}>Meu perfil</Text>
-            {perfil ? <Text>Nome: {perfil.nome}</Text> : null}
-            <Text style={styles.rotulo}>Meu bairro</Text>
+            <Text style={styles.subtitulo}>Meu bairro</Text>
             {perfil?.bairro ? (
               <Text style={styles.bairroAtual}>
                 🏠 {perfil.bairro.nome} — {perfil.bairro.municipio}/{perfil.bairro.uf}
@@ -178,7 +182,7 @@ export default function Conta() {
                     style={[styles.opcaoBairro, perfil?.bairro_id === bairro.id && styles.opcaoBairroAtual]}
                     onPress={() => salvarBairro(bairro)}>
                     <Text style={styles.nomeBairro}>{bairro.nome}</Text>
-                    <Text>{bairro.municipio}/{bairro.uf}</Text>
+                    <Text style={styles.municipio}>{bairro.municipio}/{bairro.uf}</Text>
                   </Pressable>
                 ))}
 
@@ -241,25 +245,31 @@ export default function Conta() {
 const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 24, gap: 16 },
   centralizado: { flex: 1, justifyContent: 'center', padding: 24 },
-  formulario: { width: '100%' },
-  titulo: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  subtitulo: { fontSize: 18, fontWeight: 'bold' },
-  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 10, padding: 16, gap: 10 },
-  campo: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 12 },
-  botao: { backgroundColor: c.botao, borderRadius: 8, padding: 14, marginTop: 4 },
-  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12 },
+  formulario: { width: '100%', borderWidth: 1, borderColor: c.borda,
+    backgroundColor: c.cartao, borderRadius: 18, padding: 20, gap: 12 },
+  titulo: { fontSize: 24, fontWeight: 'bold', color: c.azul, marginBottom: 8, textAlign: 'center' },
+  subtitulo: { fontSize: 18, fontWeight: 'bold', color: c.azul },
+  identidade: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: c.azul,
+    justifyContent: 'center', alignItems: 'center' },
+  inicial: { fontSize: 24, fontWeight: 'bold', color: c.cartao },
+  dadosConta: { flex: 1 },
+  nomePerfil: { fontSize: 20, fontWeight: 'bold', color: c.azul },
+  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 16, padding: 16, gap: 10 },
+  campo: { borderWidth: 1, borderColor: c.borda, borderRadius: 12, padding: 14 },
+  botao: { backgroundColor: c.botao, borderRadius: 12, padding: 14, marginTop: 4 },
+  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 12, padding: 12 },
   textoBotao: { color: c.textoBotao, fontWeight: 'bold', textAlign: 'center' },
-  textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
-  link: { textAlign: 'center', textDecorationLine: 'underline' },
-  texto: { textAlign: 'center' },
-  email: { fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
-  rotulo: { fontWeight: 'bold', marginTop: 4 },
-  bairroAtual: { fontWeight: '600' },
-  selecaoBairro: { gap: 8, marginTop: 8 },
-  opcaoBairro: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 10 },
-  opcaoBairroAtual: { borderColor: c.botao },
-  nomeBairro: { fontWeight: 'bold' },
-  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 10, marginTop: 8 },
+  textoBotaoSecundario: { color: c.azul, fontWeight: 'bold', textAlign: 'center' },
+  link: { color: c.azul, textAlign: 'center', textDecorationLine: 'underline' },
+  email: { color: c.secundario, fontSize: 13, marginTop: 3 },
+  bairroAtual: { color: c.texto, fontWeight: '600' },
+  selecaoBairro: { gap: 8, marginTop: 8, backgroundColor: c.fundo, borderRadius: 12, padding: 12 },
+  opcaoBairro: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 12, padding: 12 },
+  opcaoBairroAtual: { borderColor: c.laranja },
+  nomeBairro: { color: c.azul, fontWeight: 'bold' },
+  municipio: { color: c.secundario, fontSize: 13 },
+  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 12, padding: 10, marginTop: 8 },
   textoRemover: { color: c.perigo, fontWeight: 'bold', textAlign: 'center' },
   mensagem: { textAlign: 'center', marginTop: 8 },
 }));

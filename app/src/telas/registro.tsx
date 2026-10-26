@@ -28,6 +28,7 @@ function Opcoes<T extends string>({ itens, valor, selecionar, disabled }: {
   const styles = useEstilos();
   return <View style={styles.opcoes}>{itens.map((item) => (
     <Pressable key={item.valor} disabled={disabled} onPress={() => selecionar(item.valor)}
+      accessibilityRole="radio" accessibilityState={{ selected: valor === item.valor, disabled }}
       style={[styles.opcao, valor === item.valor && styles.opcaoSelecionada]}>
       <Text style={[styles.textoOpcao, valor === item.valor && styles.textoOpcaoSelecionada]}>{item.titulo}</Text>
     </Pressable>
@@ -204,28 +205,30 @@ export default function Registro() {
 const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 24 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  rotulo: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, marginTop: 20 },
-  ajuda: { marginBottom: 10 },
+  rotulo: { fontSize: 17, fontWeight: 'bold', color: c.azul, marginBottom: 10, marginTop: 24 },
+  ajuda: { color: c.secundario, marginBottom: 10 },
   listaFotos: { gap: 10, paddingBottom: 4 },
   cartaoFoto: { width: 220 },
-  foto: { width: 220, height: 165, borderRadius: 8 },
+  foto: { width: 220, height: 165, borderRadius: 14 },
   numeroFoto: { textAlign: 'center', marginTop: 4, fontWeight: '600' },
-  botaoRemoverFoto: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 8, marginTop: 6 },
+  botaoRemoverFoto: { borderWidth: 1, borderColor: c.perigo, borderRadius: 12, padding: 8, marginTop: 6 },
   textoPerigo: { color: c.perigo, fontWeight: 'bold', textAlign: 'center' },
-  limiteFotos: { textAlign: 'center', marginTop: 12 },
-  status: { gap: 8, padding: 12, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8 },
-  opcoes: { gap: 8 },
-  opcao: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8, padding: 12 },
+  limiteFotos: { textAlign: 'center', color: c.secundario, marginTop: 12 },
+  status: { gap: 8, padding: 14, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 14 },
+  opcoes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  opcao: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 12,
+    paddingVertical: 12, paddingHorizontal: 16, minWidth: 92 },
   opcaoSelecionada: { backgroundColor: c.botao, borderColor: c.botao },
-  textoOpcao: { textAlign: 'center' },
+  textoOpcao: { textAlign: 'center', fontWeight: '600' },
   textoOpcaoSelecionada: { color: c.textoBotao, fontWeight: 'bold' },
-  descricao: { minHeight: 100, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, color: c.texto, borderRadius: 8, padding: 12, textAlignVertical: 'top' },
-  contador: { textAlign: 'right', marginTop: 4 },
-  botao: { backgroundColor: c.botao, borderRadius: 8, padding: 14, marginTop: 20 },
-  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12, marginTop: 8 },
+  descricao: { minHeight: 110, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao,
+    color: c.texto, borderRadius: 12, padding: 14, textAlignVertical: 'top' },
+  contador: { textAlign: 'right', color: c.secundario, marginTop: 4 },
+  botao: { backgroundColor: c.botao, borderRadius: 12, padding: 14, marginTop: 20 },
+  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 12, padding: 12, marginTop: 8 },
   textoBotao: { color: c.textoBotao, fontWeight: 'bold', textAlign: 'center' },
-  textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
-  botaoCancelar: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 12, marginTop: 8 },
+  textoBotaoSecundario: { color: c.azul, fontWeight: 'bold', textAlign: 'center' },
+  botaoCancelar: { borderWidth: 1, borderColor: c.perigo, borderRadius: 12, padding: 12, marginTop: 8 },
   mensagem: { textAlign: 'center', marginTop: 16 },
-  textoCentralizado: { textAlign: 'center', marginBottom: 8 },
+  textoCentralizado: { color: c.secundario, textAlign: 'center', marginBottom: 8 },
 }));
