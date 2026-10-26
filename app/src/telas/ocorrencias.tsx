@@ -172,10 +172,12 @@ function DetalheOcorrencia({ ocorrenciaId }: { ocorrenciaId: string }) {
     <GaleriaFotos fotos={ocorrencia.fotos} estilo="original" numeracao />
 
     <View style={styles.bloco}>
-      <Text style={styles.titulo}>{CATEGORIAS[ocorrencia.categoria]}</Text>
-      <Text>Gravidade: {GRAVIDADES[ocorrencia.gravidade]}</Text>
-      <Text>Status: {STATUS[ocorrencia.status]}</Text>
-      {ocorrencia.bairro && <Text>
+      <View style={styles.linhaTitulo}>
+        <Text style={styles.titulo}>{CATEGORIAS[ocorrencia.categoria]}</Text>
+        <Text style={styles.selo}>{STATUS[ocorrencia.status]}</Text>
+      </View>
+      <Text style={styles.infoSecundaria}>Gravidade: {GRAVIDADES[ocorrencia.gravidade]}</Text>
+      {ocorrencia.bairro && <Text style={styles.infoSecundaria}>
         {ocorrencia.bairro.nome} — {ocorrencia.bairro.municipio}/{ocorrencia.bairro.uf}
       </Text>}
       {!!ocorrencia.descricao && <Text style={styles.descricao}>{ocorrencia.descricao}</Text>}
@@ -296,14 +298,19 @@ function CartaoOcorrencia({ ocorrencia, onPress }: {
   const styles = useEstilos();
   const dias = diasDesde(ocorrencia.ativado_em ?? ocorrencia.criado_em);
   return <Pressable style={styles.itemGeral} onPress={onPress}>
-    <Text style={styles.nomeItemGeral}>{CATEGORIAS[ocorrencia.categoria] ?? ocorrencia.categoria}</Text>
-    {ocorrencia.bairro && <Text>
+    <View style={styles.linhaTitulo}>
+      <Text style={styles.nomeItemGeral}>{CATEGORIAS[ocorrencia.categoria] ?? ocorrencia.categoria}</Text>
+      <Text style={styles.selo}>{ocorrencia.resolvido_em ? 'Resolvida' : 'Ativa'}</Text>
+    </View>
+    {ocorrencia.bairro && <Text style={styles.infoSecundaria}>
       {ocorrencia.bairro.nome} — {ocorrencia.bairro.municipio}/{ocorrencia.bairro.uf}
     </Text>}
-    {ocorrencia.resolvido_em
-      ? <Text>Resolvida em {formatarData(ocorrencia.resolvido_em)}</Text>
-      : <Text>{dias === 0 ? 'Ativa hoje' : `Ativa há ${dias} ${dias === 1 ? 'dia' : 'dias'}`}</Text>}
-    <Text>Gravidade: {ocorrencia.gravidade}</Text>
+    <View style={styles.rodapeCartao}>
+      <Text style={styles.infoSecundaria}>{ocorrencia.resolvido_em
+        ? `Resolvida em ${formatarData(ocorrencia.resolvido_em)}`
+        : dias === 0 ? 'Ativa hoje' : `Ativa há ${dias} ${dias === 1 ? 'dia' : 'dias'}`}</Text>
+      <Text style={styles.gravidadeItem}>{GRAVIDADES[ocorrencia.gravidade] ?? ocorrencia.gravidade}</Text>
+    </View>
   </Pressable>;
 }
 
@@ -389,32 +396,38 @@ const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 20, gap: 16 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   galeria: { gap: 10 },
-  foto: { width: 300, height: 240, borderRadius: 10 },
-  fotoEvidencia: { width: 180, height: 135, borderRadius: 8 },
-  fotoEvidenciaDestaque: { width: 280, height: 210, borderRadius: 10 },
-  fotoHistorico: { width: 160, height: 120, borderRadius: 8 },
+  foto: { width: 300, height: 240, borderRadius: 14 },
+  fotoEvidencia: { width: 180, height: 135, borderRadius: 12 },
+  fotoEvidenciaDestaque: { width: 280, height: 210, borderRadius: 14 },
+  fotoHistorico: { width: 160, height: 120, borderRadius: 12 },
   numeroFoto: { textAlign: 'center', marginTop: 4, fontWeight: '600' },
-  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 10, padding: 16, gap: 8 },
-  blocoPreparacao: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 12, gap: 8 },
-  titulo: { fontSize: 22, fontWeight: 'bold' },
-  subtitulo: { fontSize: 18, fontWeight: 'bold' },
+  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 16, padding: 16, gap: 10 },
+  blocoPreparacao: { borderWidth: 1, borderColor: c.borda, borderRadius: 12, padding: 12, gap: 8 },
+  linhaTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  titulo: { fontSize: 22, fontWeight: 'bold', color: c.azul },
+  subtitulo: { fontSize: 18, fontWeight: 'bold', color: c.azul },
+  selo: { backgroundColor: c.fundo, color: c.azul, borderRadius: 12, overflow: 'hidden',
+    paddingVertical: 5, paddingHorizontal: 10, fontSize: 12, fontWeight: '700' },
+  infoSecundaria: { color: c.secundario, fontSize: 13 },
+  rodapeCartao: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  gravidadeItem: { color: c.laranja, fontSize: 13, fontWeight: '700' },
   descricao: { marginTop: 8 },
   dataStatus: { marginTop: 4, fontWeight: '600' },
   contagem: { fontWeight: '600' },
   votoAtual: { marginTop: 4 },
   aviso: { marginTop: 6, textAlign: 'center' },
   acoes: { gap: 8, marginTop: 8 },
-  botaoPrincipal: { backgroundColor: c.botao, borderRadius: 8, padding: 14, marginTop: 8 },
+  botaoPrincipal: { backgroundColor: c.botao, borderRadius: 12, padding: 14, marginTop: 8 },
   botaoDesabilitado: { opacity: 0.5 },
   textoBotaoPrincipal: { color: c.textoBotao, fontWeight: 'bold', textAlign: 'center' },
-  botaoVoto: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12 },
+  botaoVoto: { borderWidth: 1, borderColor: c.botao, borderRadius: 12, padding: 12 },
   botaoVotoSelecionado: { backgroundColor: c.botao },
   textoBotaoVoto: { fontWeight: 'bold', textAlign: 'center' },
   textoBotaoVotoSelecionado: { color: c.textoBotao },
-  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12, marginTop: 8 },
+  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 12, padding: 12, marginTop: 8 },
   textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
   carregandoVoto: { marginTop: 6 },
-  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 8, marginTop: 6 },
+  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 12, padding: 8, marginTop: 6 },
   textoRemover: { color: c.perigo, fontWeight: 'bold', textAlign: 'center' },
   mensagem: { marginTop: 8, textAlign: 'center' },
   linkHistorico: { color: c.azul, fontWeight: 'bold', textDecorationLine: 'underline' },
@@ -423,13 +436,13 @@ const useEstilos = definirEstilos((c) => StyleSheet.create({
   tituloEvento: { fontWeight: 'bold' },
   semFotos: { color: c.secundario },
   metricas: { flexDirection: 'row', gap: 8 },
-  metrica: { flex: 1, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8,
-    padding: 10, alignItems: 'center', justifyContent: 'center' },
-  valorMetrica: { fontSize: 21, fontWeight: 'bold' },
-  nomeMetrica: { fontSize: 11, textAlign: 'center' },
-  itemGeral: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 8, padding: 12, gap: 4 },
-  nomeItemGeral: { fontSize: 16, fontWeight: 'bold' },
-  botaoAnteriores: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12 },
-  textoBotaoAnteriores: { fontWeight: 'bold', textAlign: 'center' },
+  metrica: { flex: 1, borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 14,
+    padding: 10, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  valorMetrica: { fontSize: 24, fontWeight: 'bold', color: c.laranja },
+  nomeMetrica: { fontSize: 11, textAlign: 'center', color: c.secundario },
+  itemGeral: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 16, padding: 14, gap: 8 },
+  nomeItemGeral: { fontSize: 18, fontWeight: 'bold', color: c.azul },
+  botaoAnteriores: { borderWidth: 1, borderColor: c.botao, borderRadius: 12, padding: 12 },
+  textoBotaoAnteriores: { color: c.azul, fontWeight: 'bold', textAlign: 'center' },
   listaAnteriores: { gap: 12 },
 }));

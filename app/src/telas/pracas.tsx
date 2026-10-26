@@ -246,7 +246,8 @@ function Botao({ texto, acao, variante = 'principal', disabled = false }: {
     : variante === 'remover' ? styles.botaoRemover : styles.botaoSecundario;
   const estiloTexto = variante === 'principal' ? styles.textoBotaoPrincipal
     : variante === 'remover' ? styles.textoRemover : styles.textoBotaoSecundario;
-  return <Pressable style={estiloBotao} onPress={acao} disabled={disabled}>
+  return <Pressable style={[estiloBotao, disabled && styles.desabilitado]}
+    accessibilityRole="button" onPress={acao} disabled={disabled}>
     <Text style={estiloTexto}>{texto}</Text>
   </Pressable>;
 }
@@ -260,8 +261,13 @@ function ResumoPraca({ praca }: { praca: Praca }) {
         {praca.fotos.length > 1 && <Text style={styles.numeroFoto}>{i + 1}/{praca.fotos.length}</Text>}
       </View>)}
     </ScrollView>}
-    <Text style={styles.subtitulo}>{praca.nome}</Text>
-    {praca.bairro && <Text>{praca.bairro.nome} — {praca.bairro.municipio}/{praca.bairro.uf}</Text>}
+    <View style={styles.linhaTitulo}>
+      <Text style={styles.nomePraca}>{praca.nome}</Text>
+      <Text style={styles.selo}>{praca.status === 'APROVADA' ? 'Aprovada' : 'Aguardando'}</Text>
+    </View>
+    {praca.bairro && <Text style={styles.bairroPraca}>
+      {praca.bairro.nome} — {praca.bairro.municipio}/{praca.bairro.uf}
+    </Text>}
   </>;
 }
 
@@ -270,28 +276,37 @@ function Estrelas({ valor, onPress, disabled }: {
 }) {
   const styles = useEstilos();
   return <View style={styles.estrelas}>{[1, 2, 3, 4, 5].map((nota) =>
-    <Pressable key={nota} onPress={() => onPress(nota)} disabled={disabled}>
-      <Text style={styles.estrela}>{nota <= valor ? '★' : '☆'}</Text>
+    <Pressable key={nota} onPress={() => onPress(nota)} disabled={disabled}
+      accessibilityRole="button" accessibilityLabel={`${nota} ${nota === 1 ? 'estrela' : 'estrelas'}`}>
+      <Text style={[styles.estrela, nota <= valor && styles.estrelaAtiva]}>{nota <= valor ? '★' : '☆'}</Text>
     </Pressable>)}</View>;
 }
 
 const useEstilos = definirEstilos((c) => StyleSheet.create({
   container: { padding: 20, gap: 16 },
   centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  subtitulo: { fontSize: 18, fontWeight: 'bold' },
-  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 10, padding: 14, gap: 8 },
-  campo: { borderWidth: 1, borderColor: c.borda, borderRadius: 8, padding: 12 },
+  subtitulo: { fontSize: 18, fontWeight: 'bold', color: c.azul },
+  bloco: { borderWidth: 1, borderColor: c.borda, backgroundColor: c.cartao, borderRadius: 16, padding: 16, gap: 10 },
+  linhaTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  nomePraca: { fontSize: 18, fontWeight: 'bold', color: c.azul },
+  selo: { backgroundColor: c.fundo, color: c.azul, borderRadius: 12, overflow: 'hidden',
+    paddingVertical: 5, paddingHorizontal: 10, fontSize: 12, fontWeight: '700' },
+  bairroPraca: { fontSize: 13, color: c.secundario },
+  campo: { borderWidth: 1, borderColor: c.borda, borderRadius: 12, padding: 14 },
   galeria: { gap: 10 }, cartaoFoto: { width: 240 },
-  foto: { width: 240, height: 180, borderRadius: 8 },
+  foto: { width: 240, height: 180, borderRadius: 14 },
   numeroFoto: { textAlign: 'center', marginTop: 4, fontWeight: '600' },
-  statusLocalizacao: { gap: 8, padding: 12, borderWidth: 1, borderColor: c.borda, borderRadius: 8 },
-  botaoPrincipal: { backgroundColor: c.botao, borderRadius: 8, padding: 14 },
+  statusLocalizacao: { gap: 8, padding: 12, backgroundColor: c.fundo, borderRadius: 12 },
+  botaoPrincipal: { backgroundColor: c.botao, borderRadius: 12, padding: 14 },
   textoBotaoPrincipal: { color: c.textoBotao, fontWeight: 'bold', textAlign: 'center' },
-  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 8, padding: 12 },
-  textoBotaoSecundario: { fontWeight: 'bold', textAlign: 'center' },
-  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 8, padding: 8 },
+  botaoSecundario: { borderWidth: 1, borderColor: c.botao, borderRadius: 12, padding: 12 },
+  textoBotaoSecundario: { color: c.azul, fontWeight: 'bold', textAlign: 'center' },
+  botaoRemover: { borderWidth: 1, borderColor: c.perigo, borderRadius: 12, padding: 8 },
   textoRemover: { color: c.perigo, fontWeight: 'bold', textAlign: 'center' },
-  media: { fontSize: 17, fontWeight: 'bold' }, bonus: { fontWeight: '600' },
-  estrelas: { flexDirection: 'row', gap: 8 }, estrela: { fontSize: 32 },
-  aviso: { textAlign: 'center' }, mensagem: { textAlign: 'center' },
+  desabilitado: { opacity: 0.5 },
+  media: { fontSize: 17, fontWeight: 'bold', color: c.laranja },
+  bonus: { color: c.azul, fontWeight: '600' },
+  estrelas: { flexDirection: 'row', gap: 8 },
+  estrela: { fontSize: 32, color: c.borda }, estrelaAtiva: { color: c.laranja },
+  aviso: { textAlign: 'center', color: c.secundario }, mensagem: { textAlign: 'center' },
 }));
