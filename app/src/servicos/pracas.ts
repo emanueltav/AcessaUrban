@@ -186,7 +186,7 @@ export async function registrarPraca(dados: NovaPraca): Promise<string> {
     if (error) throw new Error(`Erro ao registrar praça: ${error.message}`);
     return String(data);
   } catch (error) {
-    await removerFotosStorage(fotos.map((foto) => foto.caminho));
+    await removerFotosStorage(fotos.map((foto) => foto.caminho), { tolerarFalhas: true });
     throw error;
   }
 }
@@ -215,5 +215,10 @@ export async function excluirPracaPendente(id: string): Promise<void> {
     p_praca_id: id,
   });
   if (error) throw new Error(error.message);
-  await removerFotosStorage(Array.isArray(data) ? data : []);
+  try {
+    await removerFotosStorage(Array.isArray(data) ? data : []);
+  } catch (erro) {
+    throw new Error('A praça foi excluída do banco, mas não foi possível remover todas as fotos. ' +
+      (erro instanceof Error ? erro.message : 'Verifique o Storage.'));
+  }
 }

@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Camera, GeoJSONSource, Layer, Map, Marker,
-  type CameraRef, type FilterSpecification, type GeoJSONSourceProps, type GeoJSONSourceRef,
-  type MapRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
+import { Camera, Map, Marker,
+  type CameraRef, type MapRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
 
 import type { RootStackParamList } from '../navegacao/rotas';
 import { definirEstilos, Texto as Text, useTema } from '../contextos/tema';
@@ -19,6 +18,8 @@ const ESTILOS_MAPA = {
 type Coordenada = [number, number];
 type Indicador = { x: number; y: number; angulo: number };
 const CENTRO_INICIAL: Coordenada = [-35.211, -5.7945];
+const ZOOM_MARCADORES = 15;
+const ZOOM_LOCALIZACAO = 15;
 const SIMBOLOS: Record<OcorrenciaMapa['status'], string> = {
   PENDENTE_VALIDACAO: '?',
   ATIVA: '!',
@@ -30,35 +31,6 @@ const mercatorY = (latitude: number) => {
   return Math.log(Math.tan(Math.PI / 4 + rad / 2)) / (2 * Math.PI);
 };
 
-type EventoPonto = Parameters<NonNullable<GeoJSONSourceProps['onPress']>>[0];
-
-function PontosAgrupados({ id, dados, cor, referencia, aoTocar }: {
-  id: string;
-  dados: GeoJSONSourceProps['data'];
-  cor: string;
-  referencia: React.Ref<GeoJSONSourceRef>;
-  aoTocar: (evento: EventoPonto) => void;
-}) {
-  const grupos: FilterSpecification = ['has', 'point_count'];
-  const individuais: FilterSpecification = ['!', ['has', 'point_count']];
-  return <GeoJSONSource id={id} ref={referencia} data={dados} cluster clusterRadius={55}
-    clusterMaxZoom={14} onPress={aoTocar}>
-    <Layer id={`${id}-grupos`} type="circle" source={id} maxzoom={15} filter={grupos}
-      paint={{ 'circle-color': cor, 'circle-radius': 22, 'circle-stroke-color': '#FFFFFF',
-        'circle-stroke-width': 2 }} />
-    <Layer id={`${id}-quantidade`} type="symbol" source={id} maxzoom={15} filter={grupos}
-      layout={{ 'text-font': ['Noto Sans Regular'], 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 14,
-        'text-allow-overlap': true }} paint={{ 'text-color': '#FFFFFF' }} />
-    <Layer id={`${id}-pontos`} type="circle" source={id} maxzoom={15} filter={individuais}
-      paint={{ 'circle-color': ['get', 'cor'], 'circle-radius': 14,
-        'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }} />
-    <Layer id={`${id}-simbolos`} type="symbol" source={id} maxzoom={15} filter={individuais}
-      layout={{ 'text-font': ['Noto Sans Regular'], 'text-field': ['get', 'simbolo'],
-        'text-size': 16, 'text-allow-overlap': true }}
-      paint={{ 'text-color': '#FFFFFF' }} />
-  </GeoJSONSource>;
-}
-
 export default function Mapa() {
   const styles = useEstilos();
   const { modo } = useTema();
@@ -68,8 +40,6 @@ export default function Mapa() {
   const [zoom, setZoom] = useState(10);
   const mapa = useRef<MapRef>(null);
   const camera = useRef<CameraRef>(null);
-  const fonteOcorrencias = useRef<GeoJSONSourceRef>(null);
-  const fontePracas = useRef<GeoJSONSourceRef>(null);
   const areaCarregada = useRef<LimitesMapa | null>(null);
   const zoomCarregado = useRef(0);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,22 +54,14 @@ export default function Mapa() {
   const [indicador, setIndicador] = useState<Indicador | null>(null);
   const [erroGPS, setErroGPS] = useState('');
 
-  const dadosOcorrencias = useMemo(() => ({ type: 'FeatureCollection' as const,
-    features: ocorrencias.map((item) => ({ type: 'Feature' as const,
-      geometry: { type: 'Point' as const, coordinates: [item.longitude, item.latitude] },
-      properties: { registroId: item.id, cor: CORES_STATUS[item.status],
-        simbolo: SIMBOLOS[item.status] },
-    })),
-  }), [ocorrencias]);
-  const dadosPracas = useMemo(() => ({ type: 'FeatureCollection' as const,
-    features: pracas.map((item) => ({ type: 'Feature' as const,
-      geometry: { type: 'Point' as const, coordinates: [item.longitude, item.latitude] },
-      properties: { registroId: item.id, cor: '#0F2C40', simbolo: 'P' },
-    })),
-  }), [pracas]);
-
   function atualizarRegiao(estado: Pick<ViewStateChangeEvent, 'bounds' | 'zoom'>) {
     setZoom(estado.zoom);
+    if (estado.zoom < ZOOM_MARCADORES) {
+      if (temporizador.current) clearTimeout(temporizador.current);
+      areaCarregada.current = null;
+      setLimites(null);
+      return;
+    }
     const [oeste, sul, leste, norte] = estado.bounds;
     if (![oeste, sul, leste, norte].every(Number.isFinite)) return;
     const anterior = areaCarregada.current;
@@ -122,26 +84,6 @@ export default function Mapa() {
       zoomCarregado.current = estado.zoom;
       setLimites(novaArea);
     }, 500);
-  }
-
-  function tocarPonto(evento: EventoPonto, tipo: 'ocorrencia' | 'praca') {
-    const ponto = evento.nativeEvent.features[0];
-    if (!ponto || ponto.geometry.type !== 'Point') return;
-    const [longitude, latitude] = ponto.geometry.coordinates;
-    const agrupamentoId = ponto.properties?.cluster_id;
-    if (typeof agrupamentoId === 'number') {
-      const fonte = tipo === 'ocorrencia' ? fonteOcorrencias : fontePracas;
-      void fonte.current?.getClusterExpansionZoom(agrupamentoId).then((alvo) => {
-        if (focado.current && Number.isFinite(alvo))
-          camera.current?.easeTo({ center: [longitude, latitude], zoom: Math.min(16, alvo + 0.5),
-            duration: 550 });
-      }).catch(() => {});
-      return;
-    }
-    const id = String(ponto.properties?.registroId ?? '');
-    if (!id) return;
-    if (tipo === 'ocorrencia') navigation.navigate('Ocorrencia', { ocorrenciaId: id });
-    else setPracaSelecionada(pracas.find((item) => item.id === id) ?? null);
   }
 
   useEffect(() => () => { if (temporizador.current) clearTimeout(temporizador.current); }, []);
@@ -173,7 +115,7 @@ export default function Mapa() {
     if (!localAtual.current) return;
     acompanhando.current = true;
     setIndicador(null);
-    camera.current?.easeTo({ center: localAtual.current, zoom: 15, duration: 650 });
+    camera.current?.easeTo({ center: localAtual.current, zoom: ZOOM_LOCALIZACAO, duration: 650 });
   }
 
   function atualizarLocalizacao(posicao: Location.LocationObject) {
@@ -183,7 +125,7 @@ export default function Mapa() {
     setLocalizacao(local);
     setErroGPS('');
     if (acompanhando.current)
-      camera.current?.easeTo({ center: local, zoom: primeira ? 15 : undefined, duration: 600 });
+      camera.current?.easeTo({ center: local, zoom: primeira ? ZOOM_LOCALIZACAO : undefined, duration: 600 });
     else atualizarIndicador();
   }
 
@@ -226,7 +168,7 @@ export default function Mapa() {
         }}
         onDidFinishLoadingMap={() => {
           if (focado.current && acompanhando.current && localAtual.current)
-            camera.current?.jumpTo({ center: localAtual.current, zoom: 15 });
+            camera.current?.jumpTo({ center: localAtual.current, zoom: ZOOM_LOCALIZACAO });
           else atualizarIndicador();
           void mapa.current?.getViewState().then((estado) => {
             if (focado.current) atualizarRegiao(estado);
@@ -248,17 +190,13 @@ export default function Mapa() {
           atualizarRegiao(nativeEvent);
         }}>
         <Camera ref={camera} initialViewState={{
-          center: localAtual.current ?? CENTRO_INICIAL, zoom: localAtual.current ? 15 : 10,
+          center: localAtual.current ?? CENTRO_INICIAL, zoom: localAtual.current ? ZOOM_LOCALIZACAO : 10,
         }} />
         {localizacao && <Marker id="minha-localizacao" lngLat={localizacao}
           anchor="center" onPress={centralizar}>
           <View style={styles.localAnel}><View style={styles.localCentro} /></View>
         </Marker>}
-        <PontosAgrupados id="ocorrencias-mapa" dados={dadosOcorrencias} cor="#F4663A"
-          referencia={fonteOcorrencias} aoTocar={(evento) => tocarPonto(evento, 'ocorrencia')} />
-        <PontosAgrupados id="pracas-mapa" dados={dadosPracas} cor="#0F2C40"
-          referencia={fontePracas} aoTocar={(evento) => tocarPonto(evento, 'praca')} />
-        {zoom >= 15 && ocorrencias.map((ocorrencia) => (
+        {zoom >= ZOOM_MARCADORES && ocorrencias.map((ocorrencia) => (
           <Marker key={ocorrencia.id} id={ocorrencia.id} anchor="bottom"
             lngLat={[ocorrencia.longitude, ocorrencia.latitude]}
             onPress={() => navigation.navigate('Ocorrencia', { ocorrenciaId: ocorrencia.id })}>
@@ -267,7 +205,7 @@ export default function Mapa() {
             </View>
           </Marker>
         ))}
-        {zoom >= 15 && pracas.map((praca) => <Marker key={praca.id} id={`praca-${praca.id}`}
+        {zoom >= ZOOM_MARCADORES && pracas.map((praca) => <Marker key={praca.id} id={`praca-${praca.id}`}
           lngLat={[praca.longitude, praca.latitude]} anchor="bottom"
           onPress={() => setPracaSelecionada(praca)}>
           <View style={styles.marcadorPraca}><Text style={styles.arvore}>🌳</Text></View>
@@ -278,9 +216,9 @@ export default function Mapa() {
         style={[styles.indicadorBorda, { left: indicador.x, top: indicador.y }]}>
         <Text style={[styles.seta, { transform: [{ rotate: `${indicador.angulo}deg` }] }]}>➤</Text>
       </Pressable>}
-      {!!(erro || erroPracas || excesso || erroGPS || carregando) &&
+      {!!(erro || erroPracas || (zoom >= ZOOM_MARCADORES && excesso) || erroGPS || carregando) &&
         <Text style={styles.avisoGPS}>{erro || erroPracas ||
-          (excesso ? 'Muitos registros nesta região. Aproxime o mapa para visualizá-los.' : '') ||
+          (zoom >= ZOOM_MARCADORES && excesso ? 'Muitos registros nesta região. Aproxime o mapa para visualizá-los.' : '') ||
           erroGPS || 'Atualizando registros...'}</Text>}
       {pracaSelecionada && <View style={styles.cartaoPraca}>
         <Pressable accessibilityRole="button" accessibilityLabel="Fechar informações da praça"

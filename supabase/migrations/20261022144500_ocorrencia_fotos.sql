@@ -94,6 +94,19 @@ USING (
         (SELECT auth.uid()::text)
 );
 
+-- A remocao pela Storage API tambem precisa consultar o objeto.
+-- Cada usuario so enxerga os arquivos da propria pasta no bucket fotos.
+DROP POLICY IF EXISTS "Usuario visualiza proprias fotos no storage" ON storage.objects;
+
+CREATE POLICY "Usuario visualiza proprias fotos no storage"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+    bucket_id = 'fotos'
+    AND (storage.foldername(name))[1] = (SELECT auth.uid()::text)
+);
+
 
 -- registra a ocorrência e suas fotos na mesma transação.
 CREATE OR REPLACE FUNCTION public.registrar_ocorrencia_com_fotos(

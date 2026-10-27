@@ -174,7 +174,7 @@ export async function votarResolucao(
 
     if (error) throw new Error(error.message);
   } catch (error) {
-    await removerFotosStorage(caminhos);
+    await removerFotosStorage(caminhos, { tolerarFalhas: true });
     throw error;
   }
 }

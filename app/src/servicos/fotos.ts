@@ -32,14 +32,20 @@ export async function enviarFotoStorage(
   return { url: data.publicUrl, caminho };
 }
 
-export async function removerFotosStorage(caminhos: string[]): Promise<void> {
-  const validos = caminhos.filter(Boolean);
+export async function removerFotosStorage(
+  caminhos: string[], { tolerarFalhas = false }: { tolerarFalhas?: boolean } = {}
+): Promise<void> {
+  const validos = [...new Set(caminhos.filter((caminho) => caminho && caminho !== 'legado'))];
   if (validos.length === 0) return;
 
-  const { error } = await supabase.storage.from('fotos').remove(validos);
-
-  if (error) {
-    console.error('Erro ao remover fotos do Storage:', error);
+  try {
+    const { data, error } = await supabase.storage.from('fotos').remove(validos);
+    if (error) throw error;
+    if (data?.length !== validos.length)
+      throw new Error(`Somente ${data?.length ?? 0} de ${validos.length} foto(s) foram removidas.`);
+  } catch (erro) {
+    console.error('Erro ao remover fotos do Storage:', erro, validos);
+    if (!tolerarFalhas) throw new Error('Não foi possível remover todas as fotos do Storage.');
   }
 }
 
@@ -56,7 +62,7 @@ export async function enviarFotosStorage(
     }
     return enviadas;
   } catch (error) {
-    await removerFotosStorage(enviadas.map((foto) => foto.caminho));
+    await removerFotosStorage(enviadas.map((foto) => foto.caminho), { tolerarFalhas: true });
     throw error;
   }
 }
