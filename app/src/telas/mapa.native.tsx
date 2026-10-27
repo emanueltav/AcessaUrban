@@ -47,13 +47,14 @@ function PontosAgrupados({ id, dados, cor, referencia, aoTocar }: {
       paint={{ 'circle-color': cor, 'circle-radius': 22, 'circle-stroke-color': '#FFFFFF',
         'circle-stroke-width': 2 }} />
     <Layer id={`${id}-quantidade`} type="symbol" source={id} maxzoom={15} filter={grupos}
-      layout={{ 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 14,
+      layout={{ 'text-font': ['Noto Sans Regular'], 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 14,
         'text-allow-overlap': true }} paint={{ 'text-color': '#FFFFFF' }} />
     <Layer id={`${id}-pontos`} type="circle" source={id} maxzoom={15} filter={individuais}
       paint={{ 'circle-color': ['get', 'cor'], 'circle-radius': 14,
         'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }} />
     <Layer id={`${id}-simbolos`} type="symbol" source={id} maxzoom={15} filter={individuais}
-      layout={{ 'text-field': ['get', 'simbolo'], 'text-size': 16, 'text-allow-overlap': true }}
+      layout={{ 'text-font': ['Noto Sans Regular'], 'text-field': ['get', 'simbolo'],
+        'text-size': 16, 'text-allow-overlap': true }}
       paint={{ 'text-color': '#FFFFFF' }} />
   </GeoJSONSource>;
 }
@@ -93,7 +94,7 @@ export default function Mapa() {
   const dadosPracas = useMemo(() => ({ type: 'FeatureCollection' as const,
     features: pracas.map((item) => ({ type: 'Feature' as const,
       geometry: { type: 'Point' as const, coordinates: [item.longitude, item.latitude] },
-      properties: { registroId: item.id, cor: '#0F2C40', simbolo: '🌳' },
+      properties: { registroId: item.id, cor: '#0F2C40', simbolo: 'P' },
     })),
   }), [pracas]);
 
