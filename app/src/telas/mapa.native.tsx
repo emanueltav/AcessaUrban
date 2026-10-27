@@ -2,19 +2,18 @@ import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Camera, GeoJSONSource, Layer, Map, Marker,
-  type CameraRef, type GeoJSONSourceProps, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
+import { Camera, Map, Marker, type CameraRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
 
-import bairrosRN from '../../assets/bairros-rn.json';
 import type { RootStackParamList } from '../navegacao/rotas';
-import { definirEstilos, Texto as Text } from '../contextos/tema';
+import { definirEstilos, Texto as Text, useTema } from '../contextos/tema';
 import { useDadosMapa } from '../hooks/useDadosMapa';
 import type { OcorrenciaMapa } from '../servicos/mapa';
 import type { PracaMapa } from '../servicos/pracas';
 
-const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
-// Malha de bairros do RN: IBGE, Censo 2022 (185 bairros em 19 municípios).
-const LIMITES_BAIRROS = bairrosRN as GeoJSONSourceProps['data'];
+const ESTILOS_MAPA = {
+  claro: 'https://tiles.openfreemap.org/styles/liberty',
+  escuro: 'https://tiles.openfreemap.org/styles/liberty',
+};
 type Coordenada = [number, number];
 type Indicador = { x: number; y: number; angulo: number };
 const CENTRO_INICIAL: Coordenada = [-35.211, -5.7945];
@@ -31,6 +30,7 @@ const mercatorY = (latitude: number) => {
 
 export default function Mapa() {
   const styles = useEstilos();
+  const { modo } = useTema();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { ocorrencias, pracas, carregando, erro, erroPracas } = useDadosMapa();
   const camera = useRef<CameraRef>(null);
@@ -123,7 +123,7 @@ export default function Mapa() {
 
   return (
     <View style={styles.container}>
-      <Map style={styles.mapa} mapStyle={ESTILO_MAPA}
+      <Map style={styles.mapa} mapStyle={ESTILOS_MAPA[modo]}
         onLayout={({ nativeEvent }) => {
           dimensoes.current = nativeEvent.layout;
           atualizarIndicador();
@@ -150,11 +150,6 @@ export default function Mapa() {
         <Camera ref={camera} initialViewState={{
           center: localAtual.current ?? CENTRO_INICIAL, zoom: localAtual.current ? 15 : 10,
         }} />
-        <GeoJSONSource id="bairros-rn" data={LIMITES_BAIRROS}>
-          <Layer id="limites-bairros" type="line" source="bairros-rn" paint={{
-            'line-color': '#0F2C40', 'line-opacity': 0.65, 'line-width': 1.6,
-          }} />
-        </GeoJSONSource>
         {localizacao && <Marker id="minha-localizacao" lngLat={localizacao}
           anchor="center" onPress={centralizar}>
           <View style={styles.localAnel}><View style={styles.localCentro} /></View>
