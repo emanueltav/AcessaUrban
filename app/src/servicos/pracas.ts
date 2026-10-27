@@ -1,5 +1,6 @@
 import { enviarFotosStorage, removerFotosStorage } from './fotos';
-import { distanciaMetros, limitesProximidade, type Coordenadas } from './mapa';
+import { distanciaMetros, limitesProximidade, LIMITE_MARCADORES,
+  type Coordenadas, type LimitesMapa } from './mapa';
 import { supabase } from './supabase';
 
 export type StatusPraca = 'PENDENTE' | 'APROVADA';
@@ -34,8 +35,8 @@ export type PracaProxima = {
 
 export type PracaMapa = Pick<Praca, 'id' | 'nome' | 'fotos' | 'bairro' | 'media' | 'totalAvaliacoes'> & Coordenadas;
 
-export async function listarPracasMapa(): Promise<PracaMapa[]> {
-  const { data, error } = await supabase.from('pracas')
+export async function listarPracasMapa(limites?: LimitesMapa): Promise<PracaMapa[]> {
+  let consulta = supabase.from('pracas')
     .select(`id, nome, latitude, longitude,
       bairro:bairros (nome, municipio, uf),
       fotos:praca_fotos (id, foto_url, ordem),
@@ -43,6 +44,13 @@ export async function listarPracasMapa(): Promise<PracaMapa[]> {
     .eq('status', 'APROVADA')
     .not('latitude', 'is', null)
     .not('longitude', 'is', null);
+
+  if (limites) consulta = consulta
+    .gte('latitude', limites.minLat).lte('latitude', limites.maxLat)
+    .gte('longitude', limites.minLon).lte('longitude', limites.maxLon)
+    .limit(LIMITE_MARCADORES + 1);
+
+  const { data, error } = await consulta;
 
   if (error) throw new Error(`Erro ao carregar praças no mapa: ${error.message}`);
   return (data ?? []).map((item): PracaMapa => {

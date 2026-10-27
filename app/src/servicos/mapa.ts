@@ -2,6 +2,8 @@ import { supabase } from './supabase';
 
 export type StatusOcorrencia = 'PENDENTE_VALIDACAO' | 'ATIVA' | 'RESOLVIDA';
 export type Coordenadas = { latitude: number; longitude: number };
+export type LimitesMapa = { minLat: number; maxLat: number; minLon: number; maxLon: number };
+export const LIMITE_MARCADORES = 300;
 
 export function distanciaMetros(origem: Coordenadas, destino: Coordenadas): number {
   const radianos = Math.PI / 180;
@@ -56,8 +58,8 @@ function resolvidaAindaVisivel(resolvidoEm: string | null): boolean {
   return new Date(resolvidoEm) >= limite;
 }
 
-export async function listarOcorrenciasMapa(): Promise<OcorrenciaMapa[]> {
-  const { data, error } = await supabase
+export async function listarOcorrenciasMapa(limites?: LimitesMapa): Promise<OcorrenciaMapa[]> {
+  let consulta = supabase
     .from('ocorrencias')
     .select(`
       id, usuario_id, categoria, gravidade, descricao,
@@ -66,6 +68,18 @@ export async function listarOcorrenciasMapa(): Promise<OcorrenciaMapa[]> {
       bairro:bairros (nome, municipio, uf)
     `)
     .order('criado_em', { ascending: false });
+
+  if (limites) {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - 30);
+    consulta = consulta
+      .gte('latitude', limites.minLat).lte('latitude', limites.maxLat)
+      .gte('longitude', limites.minLon).lte('longitude', limites.maxLon)
+      .or(`status.neq.RESOLVIDA,resolvido_em.gte.${limite.toISOString()}`)
+      .limit(LIMITE_MARCADORES + 1);
+  }
+
+  const { data, error } = await consulta;
 
   if (error) {
     throw new Error(`Erro ao carregar ocorrências: ${error.message}`);

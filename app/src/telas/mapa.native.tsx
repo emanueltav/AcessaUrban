@@ -1,13 +1,15 @@
-import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Camera, Map, Marker, type CameraRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
+import { Camera, GeoJSONSource, Layer, Map, Marker,
+  type CameraRef, type FilterSpecification, type GeoJSONSourceProps, type GeoJSONSourceRef,
+  type MapRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
 
 import type { RootStackParamList } from '../navegacao/rotas';
 import { definirEstilos, Texto as Text, useTema } from '../contextos/tema';
 import { useDadosMapa } from '../hooks/useDadosMapa';
-import type { OcorrenciaMapa } from '../servicos/mapa';
+import type { LimitesMapa, OcorrenciaMapa } from '../servicos/mapa';
 import type { PracaMapa } from '../servicos/pracas';
 
 const ESTILOS_MAPA = {
@@ -28,12 +30,48 @@ const mercatorY = (latitude: number) => {
   return Math.log(Math.tan(Math.PI / 4 + rad / 2)) / (2 * Math.PI);
 };
 
+type EventoPonto = Parameters<NonNullable<GeoJSONSourceProps['onPress']>>[0];
+
+function PontosAgrupados({ id, dados, cor, referencia, aoTocar }: {
+  id: string;
+  dados: GeoJSONSourceProps['data'];
+  cor: string;
+  referencia: React.Ref<GeoJSONSourceRef>;
+  aoTocar: (evento: EventoPonto) => void;
+}) {
+  const grupos: FilterSpecification = ['has', 'point_count'];
+  const individuais: FilterSpecification = ['!', ['has', 'point_count']];
+  return <GeoJSONSource id={id} ref={referencia} data={dados} cluster clusterRadius={55}
+    clusterMaxZoom={14} onPress={aoTocar}>
+    <Layer id={`${id}-grupos`} type="circle" source={id} maxzoom={15} filter={grupos}
+      paint={{ 'circle-color': cor, 'circle-radius': 22, 'circle-stroke-color': '#FFFFFF',
+        'circle-stroke-width': 2 }} />
+    <Layer id={`${id}-quantidade`} type="symbol" source={id} maxzoom={15} filter={grupos}
+      layout={{ 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 14,
+        'text-allow-overlap': true }} paint={{ 'text-color': '#FFFFFF' }} />
+    <Layer id={`${id}-pontos`} type="circle" source={id} maxzoom={15} filter={individuais}
+      paint={{ 'circle-color': ['get', 'cor'], 'circle-radius': 14,
+        'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }} />
+    <Layer id={`${id}-simbolos`} type="symbol" source={id} maxzoom={15} filter={individuais}
+      layout={{ 'text-field': ['get', 'simbolo'], 'text-size': 16, 'text-allow-overlap': true }}
+      paint={{ 'text-color': '#FFFFFF' }} />
+  </GeoJSONSource>;
+}
+
 export default function Mapa() {
   const styles = useEstilos();
   const { modo } = useTema();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { ocorrencias, pracas, carregando, erro, erroPracas } = useDadosMapa();
+  const [limites, setLimites] = useState<LimitesMapa | null>(null);
+  const { ocorrencias, pracas, carregando, erro, erroPracas, excesso } = useDadosMapa(limites);
+  const [zoom, setZoom] = useState(10);
+  const mapa = useRef<MapRef>(null);
   const camera = useRef<CameraRef>(null);
+  const fonteOcorrencias = useRef<GeoJSONSourceRef>(null);
+  const fontePracas = useRef<GeoJSONSourceRef>(null);
+  const areaCarregada = useRef<LimitesMapa | null>(null);
+  const zoomCarregado = useRef(0);
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
   const estadoMapa = useRef<ViewStateChangeEvent | null>(null);
   const focado = useRef(false);
   const localAtual = useRef<Coordenada | null>(null);
@@ -44,6 +82,68 @@ export default function Mapa() {
   const [localizacao, setLocalizacao] = useState<Coordenada | null>(null);
   const [indicador, setIndicador] = useState<Indicador | null>(null);
   const [erroGPS, setErroGPS] = useState('');
+
+  const dadosOcorrencias = useMemo(() => ({ type: 'FeatureCollection' as const,
+    features: ocorrencias.map((item) => ({ type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [item.longitude, item.latitude] },
+      properties: { registroId: item.id, cor: CORES_STATUS[item.status],
+        simbolo: SIMBOLOS[item.status] },
+    })),
+  }), [ocorrencias]);
+  const dadosPracas = useMemo(() => ({ type: 'FeatureCollection' as const,
+    features: pracas.map((item) => ({ type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [item.longitude, item.latitude] },
+      properties: { registroId: item.id, cor: '#0F2C40', simbolo: '🌳' },
+    })),
+  }), [pracas]);
+
+  function atualizarRegiao(estado: Pick<ViewStateChangeEvent, 'bounds' | 'zoom'>) {
+    setZoom(estado.zoom);
+    const [oeste, sul, leste, norte] = estado.bounds;
+    if (![oeste, sul, leste, norte].every(Number.isFinite)) return;
+    const anterior = areaCarregada.current;
+    if (anterior && oeste >= anterior.minLon && leste <= anterior.maxLon &&
+        sul >= anterior.minLat && norte <= anterior.maxLat &&
+        (!excesso || estado.zoom < zoomCarregado.current + 0.7)) return;
+
+    if (temporizador.current) clearTimeout(temporizador.current);
+    temporizador.current = setTimeout(() => {
+      if (!focado.current) return;
+      const margemLat = (norte - sul) * 0.2;
+      const cruzouMeridiano = oeste > leste;
+      const margemLon = (leste - oeste) * 0.2;
+      const novaArea = {
+        minLat: Math.max(-90, sul - margemLat), maxLat: Math.min(90, norte + margemLat),
+        minLon: cruzouMeridiano ? -180 : Math.max(-180, oeste - margemLon),
+        maxLon: cruzouMeridiano ? 180 : Math.min(180, leste + margemLon),
+      };
+      areaCarregada.current = novaArea;
+      zoomCarregado.current = estado.zoom;
+      setLimites(novaArea);
+    }, 500);
+  }
+
+  function tocarPonto(evento: EventoPonto, tipo: 'ocorrencia' | 'praca') {
+    const ponto = evento.nativeEvent.features[0];
+    if (!ponto || ponto.geometry.type !== 'Point') return;
+    const [longitude, latitude] = ponto.geometry.coordinates;
+    const agrupamentoId = ponto.properties?.cluster_id;
+    if (typeof agrupamentoId === 'number') {
+      const fonte = tipo === 'ocorrencia' ? fonteOcorrencias : fontePracas;
+      void fonte.current?.getClusterExpansionZoom(agrupamentoId).then((alvo) => {
+        if (focado.current && Number.isFinite(alvo))
+          camera.current?.easeTo({ center: [longitude, latitude], zoom: Math.min(16, alvo + 0.5),
+            duration: 550 });
+      }).catch(() => {});
+      return;
+    }
+    const id = String(ponto.properties?.registroId ?? '');
+    if (!id) return;
+    if (tipo === 'ocorrencia') navigation.navigate('Ocorrencia', { ocorrenciaId: id });
+    else setPracaSelecionada(pracas.find((item) => item.id === id) ?? null);
+  }
+
+  useEffect(() => () => { if (temporizador.current) clearTimeout(temporizador.current); }, []);
 
   function atualizarIndicador() {
     const local = localAtual.current;
@@ -116,14 +216,9 @@ export default function Mapa() {
 
   useFocusEffect(useCallback(() => { setPracaSelecionada(null); }, []));
 
-  if (carregando || erro) return <View style={styles.centralizado}>
-    {carregando && <ActivityIndicator />}
-    <Text style={styles.mensagem}>{erro || 'Carregando ocorrências...'}</Text>
-  </View>;
-
   return (
     <View style={styles.container}>
-      <Map style={styles.mapa} mapStyle={ESTILOS_MAPA[modo]}
+      <Map ref={mapa} style={styles.mapa} mapStyle={ESTILOS_MAPA[modo]}
         onLayout={({ nativeEvent }) => {
           dimensoes.current = nativeEvent.layout;
           atualizarIndicador();
@@ -132,6 +227,9 @@ export default function Mapa() {
           if (focado.current && acompanhando.current && localAtual.current)
             camera.current?.jumpTo({ center: localAtual.current, zoom: 15 });
           else atualizarIndicador();
+          void mapa.current?.getViewState().then((estado) => {
+            if (focado.current) atualizarRegiao(estado);
+          }).catch(() => {});
         }}
         onRegionWillChange={({ nativeEvent }) => {
           estadoMapa.current = nativeEvent;
@@ -146,6 +244,7 @@ export default function Mapa() {
         onRegionDidChange={({ nativeEvent }) => {
           estadoMapa.current = nativeEvent;
           if (!acompanhando.current) atualizarIndicador();
+          atualizarRegiao(nativeEvent);
         }}>
         <Camera ref={camera} initialViewState={{
           center: localAtual.current ?? CENTRO_INICIAL, zoom: localAtual.current ? 15 : 10,
@@ -154,7 +253,11 @@ export default function Mapa() {
           anchor="center" onPress={centralizar}>
           <View style={styles.localAnel}><View style={styles.localCentro} /></View>
         </Marker>}
-        {ocorrencias.map((ocorrencia) => (
+        <PontosAgrupados id="ocorrencias-mapa" dados={dadosOcorrencias} cor="#F4663A"
+          referencia={fonteOcorrencias} aoTocar={(evento) => tocarPonto(evento, 'ocorrencia')} />
+        <PontosAgrupados id="pracas-mapa" dados={dadosPracas} cor="#0F2C40"
+          referencia={fontePracas} aoTocar={(evento) => tocarPonto(evento, 'praca')} />
+        {zoom >= 15 && ocorrencias.map((ocorrencia) => (
           <Marker key={ocorrencia.id} id={ocorrencia.id} anchor="bottom"
             lngLat={[ocorrencia.longitude, ocorrencia.latitude]}
             onPress={() => navigation.navigate('Ocorrencia', { ocorrenciaId: ocorrencia.id })}>
@@ -163,7 +266,7 @@ export default function Mapa() {
             </View>
           </Marker>
         ))}
-        {pracas.map((praca) => <Marker key={praca.id} id={`praca-${praca.id}`}
+        {zoom >= 15 && pracas.map((praca) => <Marker key={praca.id} id={`praca-${praca.id}`}
           lngLat={[praca.longitude, praca.latitude]} anchor="bottom"
           onPress={() => setPracaSelecionada(praca)}>
           <View style={styles.marcadorPraca}><Text style={styles.arvore}>🌳</Text></View>
@@ -174,7 +277,10 @@ export default function Mapa() {
         style={[styles.indicadorBorda, { left: indicador.x, top: indicador.y }]}>
         <Text style={[styles.seta, { transform: [{ rotate: `${indicador.angulo}deg` }] }]}>➤</Text>
       </Pressable>}
-      {!!(erroGPS || erroPracas) && <Text style={styles.avisoGPS}>{erroGPS || erroPracas}</Text>}
+      {!!(erro || erroPracas || excesso || erroGPS || carregando) &&
+        <Text style={styles.avisoGPS}>{erro || erroPracas ||
+          (excesso ? 'Muitos registros nesta região. Aproxime o mapa para visualizá-los.' : '') ||
+          erroGPS || 'Atualizando registros...'}</Text>}
       {pracaSelecionada && <View style={styles.cartaoPraca}>
         <Pressable accessibilityRole="button" accessibilityLabel="Fechar informações da praça"
           style={styles.fecharCartao} onPress={() => setPracaSelecionada(null)}>
@@ -217,8 +323,6 @@ const useEstilos = definirEstilos((c) => StyleSheet.create({
   explorarPracas: { position: 'absolute', bottom: 18, right: 16, backgroundColor: c.botao,
     paddingVertical: 12, paddingHorizontal: 18, borderRadius: 24, elevation: 3 },
   textoExplorar: { color: c.textoBotao, fontWeight: '700' },
-  centralizado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  mensagem: { textAlign: 'center', marginTop: 12 },
   marcador: { width: 32, height: 32, borderRadius: 16, alignItems: 'center',
     justifyContent: 'center', borderWidth: 2, borderColor: '#ffffff' },
   textoMarcador: { color: '#ffffff', fontWeight: 'bold' },
