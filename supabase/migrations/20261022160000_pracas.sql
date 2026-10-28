@@ -248,11 +248,11 @@ DECLARE
     v_praca_id UUID;
     v_bairro_id UUID;
 BEGIN
-    v_praca_id :=
-        COALESCE(
-            NEW.praca_id,
-            OLD.praca_id
-        );
+    IF TG_OP = 'DELETE' THEN
+        v_praca_id := OLD.praca_id;
+    ELSE
+        v_praca_id := NEW.praca_id;
+    END IF;
 
     SELECT bairro_id
     INTO v_bairro_id
@@ -266,7 +266,11 @@ BEGIN
             );
     END IF;
 
-    RETURN COALESCE(NEW, OLD);
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+
+    RETURN NEW;
 END;
 $$;
 
