@@ -6,9 +6,10 @@ import * as Location from 'expo-location';
 import Aviso from '../componentes/aviso';
 import { useAutenticacao } from '../contextos/autenticacao';
 import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
-import { avaliarPraca, buscarPracasProximas, confirmarPraca, excluirPracaPendente, listarPracas, Praca, registrarPraca } from '../servicos/pracas';
+import { avaliarPraca, buscarPracasProximas, confirmarPraca, excluirPracaPendente,
+  listarPracas, registrarPraca, type Praca, type PracaProxima } from '../servicos/pracas';
+import type { Coordenadas } from '../servicos/mapa';
 
-type Localizacao = { latitude: number; longitude: number };
 type Variante = 'principal' | 'secundario' | 'remover';
 const erroTexto = (erro: unknown, padrao: string) => erro instanceof Error ? erro.message : padrao;
 
@@ -17,6 +18,11 @@ function bonusPraca(praca: Praca) {
   if (praca.status !== 'APROVADA' || praca.totalAvaliacoes < 2 || media < 4) return null;
   return `Bônus para o bairro: +${media >= 4.5 ? '0,10' : '0,05'}`;
 }
+
+const mensagemPracaProxima = (praca: PracaProxima) =>
+  `A praça "${praca.nome}" (${praca.status === 'APROVADA' ? 'aprovada' : 'aguardando confirmação'}) está a aproximadamente ` +
+    `${Math.round(praca.distanciaMetros)} metros deste local.\n\n` +
+    'Pode ser a mesma praça. Deseja cadastrar mesmo assim?';
 
 export default function Pracas() {
   const styles = useEstilos();
@@ -28,7 +34,7 @@ export default function Pracas() {
   const [cadastrando, setCadastrando] = useState(abrirCadastro === true);
   const [nome, setNome] = useState('');
   const [fotos, setFotos] = useState<string[]>([]);
-  const [local, setLocal] = useState<Localizacao | null>(null);
+  const [local, setLocal] = useState<Coordenadas | null>(null);
   const [buscandoGPS, setBuscandoGPS] = useState(false);
   const [notas, setNotas] = useState<Record<string, number>>({});
   const [carregando, setCarregando] = useState(true);
@@ -86,11 +92,14 @@ export default function Pracas() {
   }
 
   function limparCadastro() {
-    setNome('');
-    setFotos([]);
-    setLocal(null);
-    setBuscandoGPS(false);
-    setCadastrando(false);
+    setNome(''); setFotos([]); setLocal(null);
+    setBuscandoGPS(false); setCadastrando(false);
+  }
+
+  function removerFoto(indice: number) {
+    const restantes = fotos.filter((_, i) => i !== indice);
+    setFotos(restantes);
+    if (!restantes.length) setLocal(null); setMensagem('');
   }
 
   async function executar(id: string, tarefa: () => Promise<string>, erroPadrao: string) {
@@ -126,11 +135,7 @@ export default function Pracas() {
       const proximas = await buscarPracasProximas(local);
       if (!proximas.length) return await salvarCadastro();
 
-      const maisProxima = proximas[0];
-      const status = maisProxima.status === 'APROVADA' ? 'aprovada' : 'aguardando confirmação';
-      setDuplicidade(`A praça "${maisProxima.nome}" (${status}) está a aproximadamente ` +
-        `${Math.round(maisProxima.distanciaMetros)} metros deste local.\n\n` +
-        'Pode ser a mesma praça. Deseja cadastrar mesmo assim?');
+      setDuplicidade(mensagemPracaProxima(proximas[0]));
     } catch (erro) {
       setMensagem(erroTexto(erro, 'Não foi possível verificar praças próximas.'));
     } finally { setVerificando(false); }
@@ -142,11 +147,7 @@ export default function Pracas() {
     if (!nota) return setMensagem('Escolha de 1 a 5 estrelas antes de confirmar a praça.');
     await executar(praca.id, async () => {
       const status = await confirmarPraca(praca.id, nota);
-      setNotas((atual) => {
-        const novas = { ...atual };
-        delete novas[praca.id];
-        return novas;
-      });
+      setNotas((atual) => { const novas = { ...atual }; delete novas[praca.id]; return novas; });
       return status === 'APROVADA' ? 'Praça confirmada e aprovada.' : 'Confirmação registrada.';
     }, 'Não foi possível confirmar a praça.');
   }
@@ -173,8 +174,8 @@ export default function Pracas() {
     <ActivityIndicator /><Text style={styles.mensagem}>Carregando praças...</Text>
   </View>;
 
-  const pendentes = pracas.filter((praca) => praca.status === 'PENDENTE');
-  const aprovadas = pracas.filter((praca) => praca.status === 'APROVADA');
+  const pendentes = pracas.filter((praca) => praca.status === 'PENDENTE'),
+    aprovadas = pracas.filter((praca) => praca.status === 'APROVADA');
   const ocupado = processando !== null || verificando;
 
   return <><ScrollView contentContainerStyle={styles.container}>
@@ -190,12 +191,8 @@ export default function Pracas() {
         {fotos.map((uri, indice) => <View key={`${uri}-${indice}`} style={styles.cartaoFoto}>
           <Image source={{ uri }} style={styles.foto} />
           <Text style={styles.numeroFoto}>Foto {indice + 1}</Text>
-          <Botao variante="remover" texto="Remover" disabled={ocupado} acao={() => {
-            const restantes = fotos.filter((_, i) => i !== indice);
-            setFotos(restantes);
-            if (!restantes.length) setLocal(null);
-            setMensagem('');
-          }} />
+          <Botao variante="remover" texto="Remover" disabled={ocupado}
+            acao={() => removerFoto(indice)} />
         </View>)}
       </ScrollView>}
       {fotos.length < 3 ? <Botao variante="secundario" acao={tirarFoto} disabled={ocupado || buscandoGPS}

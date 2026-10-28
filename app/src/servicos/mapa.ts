@@ -28,11 +28,22 @@ export function limitesProximidade(local: Coordenadas, raioMetros: number) {
   };
 }
 
-type BairroMapa = {
+export type BairroMapa = {
   nome: string;
   municipio: string;
   uf: string;
 };
+
+export function normalizarBairro(
+  valor: BairroMapa | BairroMapa[] | null | undefined
+): BairroMapa | null {
+  const bairro = Array.isArray(valor) ? valor[0] ?? null : valor ?? null;
+  return bairro ? {
+    nome: String(bairro.nome),
+    municipio: String(bairro.municipio),
+    uf: String(bairro.uf),
+  } : null;
+}
 
 export type OcorrenciaMapa = {
   id: string;
@@ -86,33 +97,21 @@ export async function listarOcorrenciasMapa(limites?: LimitesMapa): Promise<Ocor
   }
 
   return (data ?? [])
-    .map((item): OcorrenciaMapa => {
-      const bairro = Array.isArray(item.bairro)
-        ? item.bairro[0] ?? null
-        : item.bairro ?? null;
-
-      return {
-        id: String(item.id),
-        usuario_id: String(item.usuario_id),
-        categoria: String(item.categoria),
-        gravidade: String(item.gravidade),
-        descricao: item.descricao,
-        latitude: Number(item.latitude),
-        longitude: Number(item.longitude),
-        foto_url: String(item.foto_url),
-        status: item.status as StatusOcorrencia,
-        criado_em: String(item.criado_em),
-        ativado_em: item.ativado_em ? String(item.ativado_em) : null,
-        resolvido_em: item.resolvido_em ? String(item.resolvido_em) : null,
-        bairro: bairro
-          ? {
-              nome: String(bairro.nome),
-              municipio: String(bairro.municipio),
-              uf: String(bairro.uf),
-            }
-          : null,
-      };
-    })
+    .map((item): OcorrenciaMapa => ({
+      id: String(item.id),
+      usuario_id: String(item.usuario_id),
+      categoria: String(item.categoria),
+      gravidade: String(item.gravidade),
+      descricao: item.descricao,
+      latitude: Number(item.latitude),
+      longitude: Number(item.longitude),
+      foto_url: String(item.foto_url),
+      status: item.status as StatusOcorrencia,
+      criado_em: String(item.criado_em),
+      ativado_em: item.ativado_em ? String(item.ativado_em) : null,
+      resolvido_em: item.resolvido_em ? String(item.resolvido_em) : null,
+      bairro: normalizarBairro(item.bairro),
+    }))
     .filter((item) =>
       item.status !== 'RESOLVIDA' || resolvidaAindaVisivel(item.resolvido_em)
     );

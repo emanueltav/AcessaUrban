@@ -7,20 +7,18 @@ import { buscarPerfil } from '../servicos/perfil';
 import { supabase } from '../servicos/supabase';
 
 type Bairro = {
-  id: string;
-  nome: string;
-  municipio: string;
-  uf: string;
-  nota_base: number;
-  bonus_pracas: number;
-  nota_atual: number;
+  id: string; nome: string; municipio: string; uf: string;
+  nota_base: number; bonus_pracas: number; nota_atual: number;
   posicao: number | null;
 };
+
+type BairroSemPosicao = Omit<Bairro, 'posicao'>;
+const TAMANHO_PAGINA = 1000;
 
 const formatarNota = (nota: number) => nota.toFixed(2).replace('.', ',');
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-function adicionarPosicoes(bairros: Omit<Bairro, 'posicao'>[]): Bairro[] {
+function adicionarPosicoes(bairros: BairroSemPosicao[]): Bairro[] {
   let posicao = 1;
   return bairros.map((bairro, indice) => {
     if (indice && bairro.nota_atual !== bairros[indice - 1].nota_atual) posicao = indice + 1;
@@ -28,20 +26,35 @@ function adicionarPosicoes(bairros: Omit<Bairro, 'posicao'>[]): Bairro[] {
   });
 }
 
+async function buscarBairros(): Promise<BairroSemPosicao[]> {
+  const bairros: BairroSemPosicao[] = [];
+  for (let inicio = 0; ; inicio += TAMANHO_PAGINA) {
+    const { data, error } = await supabase.from('bairros')
+      .select('id, nome, municipio, uf, nota_base, bonus_pracas, nota_atual')
+      .order('nota_atual', { ascending: false })
+      .order('municipio').order('nome').order('id')
+      .range(inicio, inicio + TAMANHO_PAGINA - 1);
+    if (error) throw error;
+    bairros.push(...(data ?? []).map((bairro) => ({
+      ...bairro, nota_base: Number(bairro.nota_base),
+      bonus_pracas: Number(bairro.bonus_pracas), nota_atual: Number(bairro.nota_atual),
+    })));
+    if ((data?.length ?? 0) < TAMANHO_PAGINA) return bairros;
+  }
+}
+
 async function buscarBairrosAvaliados(): Promise<Set<string>> {
   const consultar = async (tabela: 'ocorrencias' | 'pracas') => {
     const ids = new Set<string>();
-    for (let inicio = 0; ; inicio += 1000) {
+    for (let inicio = 0; ; inicio += TAMANHO_PAGINA) {
       const consulta = supabase.from(tabela).select('bairro_id')
-        .order('id').range(inicio, inicio + 999);
+        .order('id').range(inicio, inicio + TAMANHO_PAGINA - 1);
       const { data, error } = tabela === 'ocorrencias'
-        ? await consulta.in('status', ['ATIVA', 'RESOLVIDA'])
-        : await consulta.eq('status', 'APROVADA');
+        ? await consulta.in('status', ['ATIVA', 'RESOLVIDA']) : await consulta.eq('status', 'APROVADA');
       if (error) throw error;
       for (const registro of data ?? []) ids.add(registro.bairro_id);
-      if ((data?.length ?? 0) < 1000) break;
+      if ((data?.length ?? 0) < TAMANHO_PAGINA) return ids;
     }
-    return ids;
   };
 
   const [ocorrencias, pracas] = await Promise.all([consultar('ocorrencias'), consultar('pracas')]);
@@ -64,23 +77,9 @@ export default function Ranking() {
       setCarregando(true);
       setErro('');
       try {
-        const [{ data, error }, bairrosAvaliados] = await Promise.all([
-          supabase.from('bairros')
-            .select('id, nome, municipio, uf, nota_base, bonus_pracas, nota_atual')
-            .order('nota_atual', { ascending: false })
-            .order('municipio', { ascending: true })
-            .order('nome', { ascending: true }),
-          buscarBairrosAvaliados(),
-        ]);
+        const [lista, bairrosAvaliados] = await Promise.all([buscarBairros(), buscarBairrosAvaliados()]);
 
         if (!ativo) return;
-        if (error) throw error;
-        const lista = (data ?? []).map((bairro) => ({
-          ...bairro,
-          nota_base: Number(bairro.nota_base),
-          bonus_pracas: Number(bairro.bonus_pracas),
-          nota_atual: Number(bairro.nota_atual),
-        }));
         setBairros([
           ...adicionarPosicoes(lista.filter((bairro) => bairrosAvaliados.has(bairro.id))),
           ...lista.filter((bairro) => !bairrosAvaliados.has(bairro.id))

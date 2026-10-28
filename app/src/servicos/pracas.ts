@@ -1,6 +1,6 @@
 import { enviarFotosStorage, removerFotosStorage } from './fotos';
-import { distanciaMetros, limitesProximidade, LIMITE_MARCADORES,
-  type Coordenadas, type LimitesMapa } from './mapa';
+import { distanciaMetros, limitesProximidade, LIMITE_MARCADORES, normalizarBairro,
+  type BairroMapa, type Coordenadas, type LimitesMapa } from './mapa';
 import { supabase } from './supabase';
 
 export type StatusPraca = 'PENDENTE' | 'APROVADA';
@@ -18,7 +18,7 @@ export type Praca = {
   status: StatusPraca;
   criado_em: string;
   fotos: FotoPraca[];
-  bairro: { nome: string; municipio: string; uf: string } | null;
+  bairro: BairroMapa | null;
   confirmacoes: number;
   usuarioConfirmou: boolean;
   media: number | null;
@@ -34,6 +34,22 @@ export type PracaProxima = {
 };
 
 export type PracaMapa = Pick<Praca, 'id' | 'nome' | 'fotos' | 'bairro' | 'media' | 'totalAvaliacoes'> & Coordenadas;
+
+function normalizarFotos(fotos: { id: unknown; foto_url: unknown; ordem: unknown }[]): FotoPraca[] {
+  return fotos.map((foto) => ({
+    id: String(foto.id),
+    foto_url: String(foto.foto_url),
+    ordem: Number(foto.ordem),
+  })).sort((a, b) => a.ordem - b.ordem);
+}
+
+function resumoAvaliacoes(avaliacoes: { nota: unknown }[]) {
+  const totalAvaliacoes = avaliacoes.length;
+  const media = totalAvaliacoes
+    ? avaliacoes.reduce((total, avaliacao) => total + Number(avaliacao.nota), 0) / totalAvaliacoes
+    : null;
+  return { media, totalAvaliacoes };
+}
 
 export async function listarPracasMapa(limites?: LimitesMapa): Promise<PracaMapa[]> {
   let consulta = supabase.from('pracas')
@@ -55,18 +71,12 @@ export async function listarPracasMapa(limites?: LimitesMapa): Promise<PracaMapa
   if (error) throw new Error(`Erro ao carregar praças no mapa: ${error.message}`);
   return (data ?? []).map((item): PracaMapa => {
     const avaliacoes = Array.isArray(item.avaliacoes) ? item.avaliacoes : [];
-    const bairro = Array.isArray(item.bairro) ? item.bairro[0] ?? null : item.bairro ?? null;
     return {
       id: String(item.id), nome: String(item.nome),
       latitude: Number(item.latitude), longitude: Number(item.longitude),
-      bairro: bairro ? { nome: bairro.nome, municipio: bairro.municipio, uf: bairro.uf } : null,
-      fotos: (item.fotos ?? []).map((foto) => ({
-        id: String(foto.id), foto_url: String(foto.foto_url), ordem: Number(foto.ordem),
-      })).sort((a, b) => a.ordem - b.ordem),
-      media: avaliacoes.length
-        ? avaliacoes.reduce((total, avaliacao) => total + Number(avaliacao.nota), 0) / avaliacoes.length
-        : null,
-      totalAvaliacoes: avaliacoes.length,
+      bairro: normalizarBairro(item.bairro),
+      fotos: normalizarFotos(Array.isArray(item.fotos) ? item.fotos : []),
+      ...resumoAvaliacoes(avaliacoes),
     };
   }).filter((praca) => Number.isFinite(praca.latitude) && Number.isFinite(praca.longitude));
 }
@@ -113,17 +123,8 @@ export async function listarPracas(usuarioId?: string | null): Promise<Praca[]> 
   if (error) throw new Error(`Erro ao carregar praças: ${error.message}`);
 
   return (data ?? []).map((item): Praca => {
-    const bairro = Array.isArray(item.bairro)
-      ? item.bairro[0] ?? null
-      : item.bairro ?? null;
-
-    const fotos = Array.isArray(item.fotos)
-      ? [...item.fotos].sort((a, b) => Number(a.ordem) - Number(b.ordem))
-      : [];
-
     const confirmacoes = Array.isArray(item.confirmacoes) ? item.confirmacoes : [];
     const avaliacoes = Array.isArray(item.avaliacoes) ? item.avaliacoes : [];
-    const soma = avaliacoes.reduce((total, avaliacao) => total + Number(avaliacao.nota), 0);
     const avaliacaoUsuario = usuarioId
       ? avaliacoes.find((avaliacao) => String(avaliacao.usuario_id) === usuarioId)
       : undefined;
@@ -134,24 +135,13 @@ export async function listarPracas(usuarioId?: string | null): Promise<Praca[]> 
       nome: String(item.nome),
       status: String(item.status) as StatusPraca,
       criado_em: String(item.criado_em),
-      fotos: fotos.map((foto) => ({
-        id: String(foto.id),
-        foto_url: String(foto.foto_url),
-        ordem: Number(foto.ordem),
-      })),
-      bairro: bairro
-        ? {
-            nome: String(bairro.nome),
-            municipio: String(bairro.municipio),
-            uf: String(bairro.uf),
-          }
-          : null,
+      fotos: normalizarFotos(Array.isArray(item.fotos) ? item.fotos : []),
+      bairro: normalizarBairro(item.bairro),
       confirmacoes: confirmacoes.length,
       usuarioConfirmou: usuarioId
         ? confirmacoes.some((item) => String(item.usuario_id) === usuarioId)
         : false,
-      media: avaliacoes.length ? soma / avaliacoes.length : null,
-      totalAvaliacoes: avaliacoes.length,
+      ...resumoAvaliacoes(avaliacoes),
       avaliacaoUsuario: avaliacaoUsuario ? Number(avaliacaoUsuario.nota) : null,
     };
   });

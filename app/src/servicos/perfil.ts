@@ -14,6 +14,15 @@ export type PerfilUsuario = {
   bairro: BairroPerfil | null;
 };
 
+function normalizarBairroPerfil(bairro: BairroPerfil): BairroPerfil {
+  return {
+    id: String(bairro.id),
+    nome: String(bairro.nome),
+    municipio: String(bairro.municipio),
+    uf: String(bairro.uf),
+  };
+}
+
 export async function buscarPerfil(usuarioId: string): Promise<PerfilUsuario> {
   const { data, error } = await supabase
     .from('perfis')
@@ -36,14 +45,7 @@ export async function buscarPerfil(usuarioId: string): Promise<PerfilUsuario> {
     id: String(data.id),
     nome: String(data.nome),
     bairro_id: data.bairro_id ? String(data.bairro_id) : null,
-    bairro: bairro
-      ? {
-          id: String(bairro.id),
-          nome: String(bairro.nome),
-          municipio: String(bairro.municipio),
-          uf: String(bairro.uf),
-        }
-      : null,
+    bairro: bairro ? normalizarBairroPerfil(bairro) : null,
   };
 }
 
@@ -62,12 +64,7 @@ export async function buscarBairros(termo: string): Promise<BairroPerfil[]> {
     throw new Error(`Erro ao pesquisar bairros: ${error.message}`);
   }
 
-  return (data ?? []).map((bairro) => ({
-    id: String(bairro.id),
-    nome: String(bairro.nome),
-    municipio: String(bairro.municipio),
-    uf: String(bairro.uf),
-  }));
+  return (data ?? []).map(normalizarBairroPerfil);
 }
 
 export async function atualizarBairroPerfil(

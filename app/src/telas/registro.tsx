@@ -6,21 +6,29 @@ import { useAutenticacao } from '../contextos/autenticacao';
 import Aviso from '../componentes/aviso';
 import { Campo as TextInput, definirEstilos, Texto as Text } from '../contextos/tema';
 import { buscarOcorrenciasProximas, registrarOcorrencia } from '../servicos/ocorrencias';
+import type { OcorrenciaProxima } from '../servicos/ocorrencias';
+import type { Coordenadas } from '../servicos/mapa';
+import type { CategoriaOcorrencia, GravidadeOcorrencia } from '../servicos/votacoes';
 
-type Categoria = 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO' | 'OUTRO';
-type Gravidade = 'LEVE' | 'MODERADO' | 'GRAVE';
-type Coordenadas = { latitude: number; longitude: number };
 type Opcao<T extends string> = { valor: T; titulo: string };
 
-const categorias: Opcao<Categoria>[] = [
+const categorias: Opcao<CategoriaOcorrencia>[] = [
   { valor: 'PAVIMENTACAO', titulo: 'Pavimentação' }, { valor: 'ILUMINACAO', titulo: 'Iluminação' },
   { valor: 'ESGOTO', titulo: 'Esgoto' }, { valor: 'CALCAMENTO', titulo: 'Calçamento' },
   { valor: 'OUTRO', titulo: 'Outro' },
 ];
-const gravidades: Opcao<Gravidade>[] = [
+const gravidades: Opcao<GravidadeOcorrencia>[] = [
   { valor: 'LEVE', titulo: 'Leve' }, { valor: 'MODERADO', titulo: 'Moderado' },
   { valor: 'GRAVE', titulo: 'Grave' },
 ];
+
+function mensagemDuplicidade({ status, descricao, distanciaMetros }: OcorrenciaProxima): string {
+  const detalhe = descricao?.trim();
+  const resumo = detalhe ? `\n\nDescrição: ${detalhe.slice(0, 100)}${detalhe.length > 100 ? '…' : ''}` : '';
+  return `Encontramos uma ocorrência ${status === 'ATIVA' ? 'ativa' : 'pendente de validação'} da mesma categoria a aproximadamente ` +
+    `${Math.round(distanciaMetros)} metros deste local.${resumo}\n\n` +
+    'Pode ser o mesmo problema. Deseja registrar mesmo assim?';
+}
 
 function Opcoes<T extends string>({ itens, valor, selecionar, disabled }: {
   itens: Opcao<T>[]; valor: T | null; selecionar: (valor: T) => void; disabled: boolean;
@@ -40,8 +48,8 @@ export default function Registro() {
   const { sessao, carregando } = useAutenticacao();
   const [fotos, setFotos] = useState<string[]>([]);
   const [local, setLocal] = useState<Coordenadas | null>(null);
-  const [categoria, setCategoria] = useState<Categoria | null>(null);
-  const [gravidade, setGravidade] = useState<Gravidade | null>(null);
+  const [categoria, setCategoria] = useState<CategoriaOcorrencia | null>(null);
+  const [gravidade, setGravidade] = useState<GravidadeOcorrencia | null>(null);
   const [descricao, setDescricao] = useState('');
   const [obtendoLocalizacao, setObtendoLocalizacao] = useState(false);
   const [verificando, setVerificando] = useState(false);
@@ -128,16 +136,7 @@ export default function Registro() {
       const proximas = await buscarOcorrenciasProximas(categoria, local);
       if (!proximas.length) return await salvarRegistro();
 
-      const maisProxima = proximas[0];
-      const status = maisProxima.status === 'ATIVA' ? 'ativa' : 'pendente de validação';
-      const descricaoExistente = maisProxima.descricao?.trim();
-      const resumo = descricaoExistente
-        ? `\n\nDescrição: ${descricaoExistente.slice(0, 100)}${descricaoExistente.length > 100 ? '…' : ''}`
-        : '';
-
-      setDuplicidade(`Encontramos uma ocorrência ${status} da mesma categoria a aproximadamente ` +
-        `${Math.round(maisProxima.distanciaMetros)} metros deste local.${resumo}\n\n` +
-        'Pode ser o mesmo problema. Deseja registrar mesmo assim?');
+      setDuplicidade(mensagemDuplicidade(proximas[0]));
     } catch (erro) {
       setMensagem(erro instanceof Error ? erro.message : 'Não foi possível verificar ocorrências próximas.');
     } finally {

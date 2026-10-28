@@ -6,28 +6,29 @@ import { useAutenticacao } from '../contextos/autenticacao';
 import Aviso from '../componentes/aviso';
 import { definirEstilos, Texto as Text } from '../contextos/tema';
 import type { RootStackParamList } from '../navegacao/rotas';
-import { buscarResumoOcorrencias, diasDesde, excluirOcorrenciaPendente, OcorrenciaResumoGeral, ResumoOcorrenciasGeral } from '../servicos/ocorrencias';
+import { buscarResumoOcorrencias, diasDesde, excluirOcorrenciaPendente,
+  type OcorrenciaResumoGeral, type ResumoOcorrenciasGeral } from '../servicos/ocorrencias';
 import {
-  buscarHistoricoOcorrencia, buscarOcorrencia, buscarResumoValidacoes, confirmarProblema,
-  EventoValidacao, FotoOcorrencia, OcorrenciaDetalhe, ResumoValidacoes, votarResolucao, VotoResolucao,
+  buscarHistoricoOcorrencia, buscarOcorrencia, buscarResumoValidacoes, confirmarProblema, votarResolucao,
+  type CategoriaOcorrencia, type EventoValidacao, type FotoOcorrencia,
+  type GravidadeOcorrencia, type OcorrenciaDetalhe, type ResumoValidacoes,
+  type StatusOcorrencia, type VotoResolucao,
 } from '../servicos/votacoes';
 
 const RESUMO_INICIAL: ResumoValidacoes = {
-  confirmacoes: 0, resolvidos: 0, aindaExiste: 0,
-  usuarioConfirmou: false, votoResolucaoUsuario: null,
+  confirmacoes: 0, resolvidos: 0, aindaExiste: 0, usuarioConfirmou: false, votoResolucaoUsuario: null,
 };
 
 const GERAL_INICIAL: ResumoOcorrenciasGeral = {
-  ativas: 0, resolvidasMes: 0, tempoMedioResolucaoDias: null,
-  ocorrenciasAtivas: [], ocorrenciasAnteriores: [],
+  ativas: 0, resolvidasMes: 0, tempoMedioResolucaoDias: null, ocorrenciasAtivas: [], ocorrenciasAnteriores: [],
 };
 
-const CATEGORIAS: Record<string, string> = {
+const CATEGORIAS: Record<CategoriaOcorrencia, string> = {
   PAVIMENTACAO: 'Pavimentação', ILUMINACAO: 'Iluminação',
   ESGOTO: 'Esgoto', CALCAMENTO: 'Calçamento', OUTRO: 'Outro',
 };
-const GRAVIDADES: Record<string, string> = { LEVE: 'Leve', MODERADO: 'Moderado', GRAVE: 'Grave' };
-const STATUS: Record<string, string> = {
+const GRAVIDADES: Record<GravidadeOcorrencia, string> = { LEVE: 'Leve', MODERADO: 'Moderado', GRAVE: 'Grave' };
+const STATUS: Record<StatusOcorrencia, string> = {
   PENDENTE_VALIDACAO: 'Aguardando validação', ATIVA: 'Ativa', RESOLVIDA: 'Resolvida',
 };
 
@@ -45,8 +46,7 @@ const tituloVoto = (voto: VotoResolucao) => voto === 'RESOLVIDO' ? 'Resolvido' :
 
 function mensagemErroVoto(erro: unknown) {
   const mensagem = erro instanceof Error ? erro.message : '';
-  return ERROS_VOTO.find(([trecho]) => mensagem.includes(trecho))?.[1]
-    ?? 'Não foi possível registrar seu voto.';
+  return ERROS_VOTO.find(([trecho]) => mensagem.includes(trecho))?.[1] ?? 'Não foi possível registrar seu voto.';
 }
 
 type FotoExibicao = Pick<FotoOcorrencia, 'id' | 'foto_url'>;
@@ -55,8 +55,7 @@ function GaleriaFotos({ fotos, estilo, numeracao = false }: {
   fotos: FotoExibicao[]; estilo: 'original' | 'destaque' | 'historico'; numeracao?: boolean;
 }) {
   const styles = useEstilos();
-  const estiloFoto = estilo === 'original' ? styles.foto
-    : estilo === 'destaque' ? styles.fotoEvidenciaDestaque : styles.fotoHistorico;
+  const estiloFoto = estilo === 'original' ? styles.foto : estilo === 'destaque' ? styles.fotoEvidenciaDestaque : styles.fotoHistorico;
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galeria}>
     {fotos.map((foto, indice) => <View key={foto.id}>
       <Image source={{ uri: foto.foto_url }} style={estiloFoto} />

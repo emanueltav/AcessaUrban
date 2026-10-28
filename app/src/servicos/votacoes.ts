@@ -1,7 +1,8 @@
 import { enviarFotosStorage, removerFotosStorage } from './fotos';
+import { normalizarBairro, type BairroMapa, type StatusOcorrencia } from './mapa';
 import { supabase } from './supabase';
 
-export type StatusOcorrencia = 'PENDENTE_VALIDACAO' | 'ATIVA' | 'RESOLVIDA';
+export type { StatusOcorrencia } from './mapa';
 export type CategoriaOcorrencia = 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO' | 'OUTRO';
 export type GravidadeOcorrencia = 'LEVE' | 'MODERADO' | 'GRAVE';
 export type VotoResolucao = 'AINDA_EXISTE' | 'RESOLVIDO';
@@ -19,12 +20,6 @@ export type EventoValidacao = {
   fotos: FotoOcorrencia[];
 };
 
-type BairroOcorrencia = {
-  nome: string;
-  municipio: string;
-  uf: string;
-};
-
 export type OcorrenciaDetalhe = {
   id: string;
   usuario_id: string;
@@ -37,7 +32,7 @@ export type OcorrenciaDetalhe = {
   criado_em: string;
   ativado_em: string | null;
   resolvido_em: string | null;
-  bairro: BairroOcorrencia | null;
+  bairro: BairroMapa | null;
 };
 
 export type ResumoValidacoes = {
@@ -70,7 +65,6 @@ export async function buscarOcorrencia(ocorrenciaId: string): Promise<Ocorrencia
 
   if (error) throw new Error(`Erro ao carregar ocorrência: ${error.message}`);
 
-  const bairro = Array.isArray(data.bairro) ? data.bairro[0] : data.bairro;
   const fotos = ordenarFotos(Array.isArray(data.fotos) ? data.fotos : []);
 
   if (!fotos.length && data.foto_url) {
@@ -80,11 +74,7 @@ export async function buscarOcorrencia(ocorrenciaId: string): Promise<Ocorrencia
   return {
     ...data,
     fotos,
-    bairro: bairro ? {
-      nome: String(bairro.nome),
-      municipio: String(bairro.municipio),
-      uf: String(bairro.uf),
-    } : null,
+    bairro: normalizarBairro(data.bairro),
   } as OcorrenciaDetalhe;
 }
 

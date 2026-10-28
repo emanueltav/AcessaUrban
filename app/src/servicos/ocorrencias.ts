@@ -1,25 +1,26 @@
 import { enviarFotosStorage, removerFotosStorage } from './fotos';
-import { distanciaMetros, limitesProximidade, type Coordenadas } from './mapa';
+import { distanciaMetros, limitesProximidade, normalizarBairro, type BairroMapa, type Coordenadas } from './mapa';
 import { supabase } from './supabase';
+import type { CategoriaOcorrencia, GravidadeOcorrencia } from './votacoes';
 
 type NovaOcorrencia = {
   usuarioId: string;
   fotoUris: string[];
   latitude: number;
   longitude: number;
-  categoria: 'PAVIMENTACAO' | 'ILUMINACAO' | 'ESGOTO' | 'CALCAMENTO' | 'OUTRO';
-  gravidade: 'LEVE' | 'MODERADO' | 'GRAVE';
+  categoria: CategoriaOcorrencia;
+  gravidade: GravidadeOcorrencia;
   descricao: string;
 };
 
 export type OcorrenciaResumoGeral = {
   id: string;
-  categoria: string;
-  gravidade: string;
+  categoria: CategoriaOcorrencia;
+  gravidade: GravidadeOcorrencia;
   criado_em: string;
   ativado_em: string | null;
   resolvido_em: string | null;
-  bairro: { nome: string; municipio: string; uf: string } | null;
+  bairro: BairroMapa | null;
 };
 
 export type ResumoOcorrenciasGeral = {
@@ -96,24 +97,14 @@ export async function buscarResumoOcorrencias(): Promise<ResumoOcorrenciasGeral>
   const resolvidas: OcorrenciaResumoGeral[] = [];
 
   for (const item of data ?? []) {
-    const bairro = Array.isArray(item.bairro)
-      ? item.bairro[0] ?? null
-      : item.bairro ?? null;
-
     const ocorrencia: OcorrenciaResumoGeral = {
       id: String(item.id),
-      categoria: String(item.categoria),
-      gravidade: String(item.gravidade),
+      categoria: item.categoria as CategoriaOcorrencia,
+      gravidade: item.gravidade as GravidadeOcorrencia,
       criado_em: String(item.criado_em),
       ativado_em: item.ativado_em ? String(item.ativado_em) : null,
       resolvido_em: item.resolvido_em ? String(item.resolvido_em) : null,
-      bairro: bairro
-        ? {
-            nome: String(bairro.nome),
-            municipio: String(bairro.municipio),
-            uf: String(bairro.uf),
-          }
-        : null,
+      bairro: normalizarBairro(item.bairro),
     };
 
     if (item.status === 'ATIVA') ativas.push(ocorrencia);

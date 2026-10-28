@@ -12,8 +12,7 @@ import type { LimitesMapa, OcorrenciaMapa } from '../servicos/mapa';
 import type { PracaMapa } from '../servicos/pracas';
 
 const ESTILOS_MAPA = {
-  claro: 'https://tiles.openfreemap.org/styles/liberty',
-  escuro: 'https://tiles.openfreemap.org/styles/liberty',
+  claro: 'https://tiles.openfreemap.org/styles/liberty', escuro: 'https://tiles.openfreemap.org/styles/liberty',
 };
 type Coordenada = [number, number];
 type Indicador = { x: number; y: number; angulo: number };
@@ -21,15 +20,22 @@ const CENTRO_INICIAL: Coordenada = [-35.211, -5.7945];
 const ZOOM_MARCADORES = 15;
 const ZOOM_LOCALIZACAO = 15;
 const SIMBOLOS: Record<OcorrenciaMapa['status'], string> = {
-  PENDENTE_VALIDACAO: '?',
-  ATIVA: '!',
-  RESOLVIDA: '✓',
+  PENDENTE_VALIDACAO: '?', ATIVA: '!', RESOLVIDA: '✓',
 };
-const CORES_STATUS = { PENDENTE_VALIDACAO: '#666666', ATIVA: '#222222', RESOLVIDA: '#2e7d32' };
+const CORES_STATUS: Record<OcorrenciaMapa['status'], string> = { PENDENTE_VALIDACAO: '#666666', ATIVA: '#222222', RESOLVIDA: '#2e7d32' };
 const mercatorY = (latitude: number) => {
   const rad = Math.max(-85.0511, Math.min(85.0511, latitude)) * Math.PI / 180;
   return Math.log(Math.tan(Math.PI / 4 + rad / 2)) / (2 * Math.PI);
 };
+
+function ampliarLimites([oeste, sul, leste, norte]: ViewStateChangeEvent['bounds']): LimitesMapa {
+  const margemLat = (norte - sul) * 0.2, margemLon = (leste - oeste) * 0.2;
+  return {
+    minLat: Math.max(-90, sul - margemLat), maxLat: Math.min(90, norte + margemLat),
+    minLon: oeste > leste ? -180 : Math.max(-180, oeste - margemLon),
+    maxLon: oeste > leste ? 180 : Math.min(180, leste + margemLon),
+  };
+}
 
 export default function Mapa() {
   const styles = useEstilos();
@@ -72,14 +78,7 @@ export default function Mapa() {
     if (temporizador.current) clearTimeout(temporizador.current);
     temporizador.current = setTimeout(() => {
       if (!focado.current) return;
-      const margemLat = (norte - sul) * 0.2;
-      const cruzouMeridiano = oeste > leste;
-      const margemLon = (leste - oeste) * 0.2;
-      const novaArea = {
-        minLat: Math.max(-90, sul - margemLat), maxLat: Math.min(90, norte + margemLat),
-        minLon: cruzouMeridiano ? -180 : Math.max(-180, oeste - margemLon),
-        maxLon: cruzouMeridiano ? 180 : Math.min(180, leste + margemLon),
-      };
+      const novaArea = ampliarLimites([oeste, sul, leste, norte]);
       areaCarregada.current = novaArea;
       zoomCarregado.current = estado.zoom;
       setLimites(novaArea);

@@ -49,10 +49,7 @@ function AbasPrincipais() {
   useEffect(() => { setPerfil(null); }, [usuarioId]);
 
   useEffect(() => {
-    if (!usuarioId || !menuAberto) {
-      if (!usuarioId) setPerfil(null);
-      return;
-    }
+    if (!usuarioId || !menuAberto) return;
     let ativo = true;
     buscarPerfil(usuarioId)
       .then((dados) => { if (ativo) setPerfil(dados); })
